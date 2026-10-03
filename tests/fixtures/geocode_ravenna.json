@@ -1,0 +1,58 @@
+{
+ "results": [
+  {
+   "id": 3169561,
+   "name": "Ravenna",
+   "latitude": 44.41344,
+   "longitude": 12.20121,
+   "elevation": 4.0,
+   "feature_code": "PPLA2",
+   "country_code": "IT",
+   "admin1_id": 3177401,
+   "admin2_id": 3169560,
+   "admin3_id": 6540121,
+   "timezone": "Europe/Rome",
+   "population": 80868,
+   "country_id": 3175395,
+   "country": "Italy",
+   "admin1": "Emilia-Romagna",
+   "admin2": "Province of Ravenna",
+   "admin3": "Ravenna"
+  },
+  {
+   "id": 5167737,
+   "name": "Ravenna",
+   "latitude": 41.15756,
+   "longitude": -81.24205,
+   "elevation": 345.0,
+   "feature_code": "PPLA2",
+   "country_code": "US",
+   "admin1_id": 5165418,
+   "admin2_id": 5167284,
+   "timezone": "America/New_York",
+   "population": 11619,
+   "country_id": 6252001,
+   "country": "United States",
+   "admin1": "Ohio",
+   "admin2": "Portage"
+  },
+  {
+   "id": 5076020,
+   "name": "Ravenna",
+   "latitude": 41.02612,
+   "longitude": -98.91258,
+   "elevation": 612.0,
+   "feature_code": "PPL",
+   "country_code": "US",
+   "admin1_id": 5073708,
+   "admin2_id": 5064837,
+   "timezone": "America/Chicago",
+   "population": 1373,
+   "country_id": 6252001,
+   "country": "United States",
+   "admin1": "Nebraska",
+   "admin2": "Buffalo"
+  }
+ ],
+ "generationtime_ms": 0.6785393
+}

@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+INTERVIEW_NOTES.md
+RECAP.md
+CLAUDE.md
+PLAN.md
+traces/*.jsonl
+!traces/normal.jsonl
+!traces/error.jsonl
+!traces/context_policy.jsonl
+*.egg-info/
