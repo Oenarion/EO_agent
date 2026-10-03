@@ -21,7 +21,7 @@ def _parse_date(label: str, value: str) -> date:
         raise ToolFailure("invalid_input", f"{label} '{value}' is not a valid date. Use YYYY-MM-DD.") from None
 
 
-def _validate(bbox: list[float], start: str, end: str, max_cloud: float, limit: int) -> None:
+def _validate(bbox: list[float], start: str, end: str, min_cloud: float, max_cloud: float, limit: int) -> None:
     if len(bbox) != 4:
         raise ToolFailure("invalid_input", "bbox must have 4 numbers: [west, south, east, north].")
     west, south, east, north = bbox
@@ -37,8 +37,10 @@ def _validate(bbox: list[float], start: str, end: str, max_cloud: float, limit: 
         )
     if _parse_date("start_date", start) > _parse_date("end_date", end):
         raise ToolFailure("invalid_input", "start_date must not be after end_date.")
-    if not 0 <= max_cloud <= 100:
-        raise ToolFailure("invalid_input", "max_cloud_cover must be between 0 and 100.")
+    if not (0 <= min_cloud <= 100 and 0 <= max_cloud <= 100):
+        raise ToolFailure("invalid_input", "min_cloud_cover and max_cloud_cover must be between 0 and 100.")
+    if min_cloud > max_cloud:
+        raise ToolFailure("invalid_input", "min_cloud_cover must not be greater than max_cloud_cover.")
     if limit < 1:
         raise ToolFailure("invalid_input", "limit must be at least 1.")
 
@@ -59,14 +61,16 @@ def _error_detail(response) -> str:
         return ""
 
 
-async def search(bbox: list[float], start_date: str, end_date: str, max_cloud_cover: float, limit: int) -> SceneSearchResult:
-    _validate(bbox, start_date, end_date, max_cloud_cover, limit)
+async def search(
+    bbox: list[float], start_date: str, end_date: str, max_cloud_cover: float, limit: int, min_cloud_cover: float = 0
+) -> SceneSearchResult:
+    _validate(bbox, start_date, end_date, min_cloud_cover, max_cloud_cover, limit)
     limit = min(limit, MAX_LIMIT)
     body = {
         "collections": [COLLECTION],
         "bbox": bbox,
         "datetime": f"{start_date}T00:00:00Z/{end_date}T23:59:59Z",
-        "query": {"eo:cloud_cover": {"lte": max_cloud_cover}},
+        "query": {"eo:cloud_cover": {"gte": min_cloud_cover, "lte": max_cloud_cover}},
         "sortby": [{"field": "properties.eo:cloud_cover", "direction": "asc"}],
         "limit": limit,
     }
@@ -96,7 +100,10 @@ async def search(bbox: list[float], start_date: str, end_date: str, max_cloud_co
         for name in missing(cloud_cover=s.cloud_cover, tile=s.tile, thumbnail_url=s.thumbnail_url)
     ]
     return SceneSearchResult(
-        query=SceneQuery(bbox=bbox, start_date=start_date, end_date=end_date, max_cloud_cover=max_cloud_cover, limit=limit),
+        query=SceneQuery(
+            bbox=bbox, start_date=start_date, end_date=end_date,
+            min_cloud_cover=min_cloud_cover, max_cloud_cover=max_cloud_cover, limit=limit,
+        ),
         total_found=total,
         returned=len(scenes),
         more_available=total > len(scenes),

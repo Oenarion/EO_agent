@@ -38,13 +38,16 @@ async def search_scenes(
     end_date: str,
     max_cloud_cover: float = 20,
     limit: int = 5,
+    min_cloud_cover: float = 0,
 ) -> SceneSearchResult:
     """Search Sentinel-2 L2A satellite scenes over an area and a date range.
 
     bbox is [west, south, east, north] in degrees (use the bbox from
-    geocode_place). Dates are YYYY-MM-DD, inclusive. max_cloud_cover is the
-    maximum cloud cover in percent (0 to 100). limit is how many scenes to
-    return (max 10).
+    geocode_place). Dates are YYYY-MM-DD, inclusive. Cloud cover is in percent
+    (0 to 100): min_cloud_cover is the lowest accepted value and max_cloud_cover
+    the highest, so "less than 10%" is max_cloud_cover=10, "more than 50%" is
+    min_cloud_cover=50 together with max_cloud_cover=100, and "between 20 and 40"
+    is min 20 and max 40. limit is how many scenes to return (max 10).
 
     Scenes are sorted by cloud cover, clearest first, and numbered from 1
     (index). total_found is the number of matches in the catalogue and
@@ -53,7 +56,7 @@ async def search_scenes(
     cloud limit. bbox sides are limited to 2 degrees (about 220 km). missing_data
     lists fields the catalogue did not provide, per scene.
     """
-    return await stac.search(bbox, start_date, end_date, max_cloud_cover, limit)
+    return await stac.search(bbox, start_date, end_date, max_cloud_cover, limit, min_cloud_cover)
 
 
 @mcp.tool()

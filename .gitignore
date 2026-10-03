@@ -12,3 +12,4 @@ traces/*.jsonl
 !traces/error.jsonl
 !traces/context_policy.jsonl
 *.egg-info/
+BUGS.md

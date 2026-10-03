@@ -66,7 +66,7 @@ async def test_search_normal(mock_http):
     assert first.thumbnail_url.endswith("preview.jpg")
     # the request sent to the catalogue
     sent = json.loads(route.calls.last.request.content)
-    assert sent["query"] == {"eo:cloud_cover": {"lte": 10}}
+    assert sent["query"] == {"eo:cloud_cover": {"gte": 0, "lte": 10}}
     assert sent["datetime"] == "2025-07-01T00:00:00Z/2025-07-31T23:59:59Z"
     assert sent["limit"] == 2
 
@@ -95,6 +95,7 @@ async def test_search_empty_is_normal_result(mock_http):
         ([12.0, 44.0, 12.5, 95.0], "2025-07-01", "2025-07-31", 10),  # latitude out of range
         ([10.0, 40.0, 13.0, 41.0], "2025-07-01", "2025-07-31", 10),  # wider than 2 degrees
         (BBOX, "2025-07-01", "2025-07-31", 150),     # cloud out of range
+        (BBOX, "2025-07-01", "2025-07-31", -5),      # cloud below 0
     ],
 )
 async def test_search_invalid_input_makes_no_http_call(mock_http, bbox, start, end, cloud):
@@ -199,3 +200,20 @@ async def test_geocode_reports_missing_region(mock_http):
     places = await geocode_mod.geocode("Ravenna")
     assert places[0].missing_fields == ["region"]
     assert places[1].missing_fields == []
+
+
+# min_cloud_cover: "more than 50% cloud" must be expressible
+
+async def test_search_min_cloud_cover_is_sent_and_echoed(mock_http):
+    route = mock_http.post(f"{stac.STAC_URL}/search").respond(json=fixture("stac_search_empty.json"))
+    result = await stac.search(BBOX, "2025-09-01", "2025-09-30", 100, 5, min_cloud_cover=50)
+    assert json.loads(route.calls.last.request.content)["query"] == {"eo:cloud_cover": {"gte": 50, "lte": 100}}
+    assert result.query.min_cloud_cover == 50 and result.query.max_cloud_cover == 100
+
+
+@pytest.mark.parametrize("min_cloud, max_cloud", [(60, 40), (-1, 50), (50, 120)])
+async def test_search_invalid_cloud_range(mock_http, min_cloud, max_cloud):
+    route = mock_http.post(f"{stac.STAC_URL}/search")
+    with pytest.raises(ToolFailure) as exc:
+        await stac.search(BBOX, "2025-09-01", "2025-09-30", max_cloud, 5, min_cloud_cover=min_cloud)
+    assert exc.value.kind == "invalid_input" and route.call_count == 0

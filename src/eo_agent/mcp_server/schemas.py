@@ -47,6 +47,7 @@ class SceneQuery(BaseModel):
     bbox: list[float]
     start_date: str
     end_date: str
+    min_cloud_cover: float
     max_cloud_cover: float
     limit: int
     sorted_by: str = "cloud_cover ascending"
