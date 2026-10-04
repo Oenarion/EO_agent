@@ -203,28 +203,29 @@ Sessions are kept in memory (`InMemorySaver`), so they are lost when the API pro
 
 ## 9. Evaluation
 
-`evals/` has a small evaluation: 15 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
+`evals/` has a small evaluation: 19 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
 
 ```bash
 python -m evals.run_eval --repeat 3
 ```
 
-Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, an unknown scene id produces a failure that the reply explains, a missing field is declared, and a question outside the scope is not answered from the model's own knowledge. The checks are themselves tested offline in `tests/test_eval_checks.py`.
+Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
 
-Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each case:
+Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each of the 19 cases:
 
 | | Passed |
 | --- | --- |
-| Cases | 45 / 45 |
-| Checks | 222 / 222 |
-| Groundedness | 60 / 60 |
-| Tool use | 63 / 63 |
-| Memory (follow-ups) | 21 / 21 |
+| Cases | 57 / 57 |
+| Checks | 294 / 294 |
+| Groundedness | 72 / 72 |
+| Tool use | 81 / 81 |
+| Memory (follow-ups) | 30 / 30 |
 | Empty and unknown results | 15 / 15 |
-| Invalid input and tool errors | 54 / 54 |
+| Invalid input and tool errors | 66 / 66 |
 | Disclosure (place used, missing data) | 9 / 9 |
+| Scope and prompt injection | 21 / 21 |
 
-How to read this number: the first runs were not perfect (42 of 45 cases), and they found two gaps in the system prompt, which I then fixed: the agent answered a general knowledge question from its own knowledge, and in one run it silently changed an impossible date. I tuned the prompt on these same 15 questions, so the final score is not an independent test. It is a small regression suite that shows the behaviour holds, and it should grow with new questions. It covers one model and 3 runs per case, and the model is not deterministic, so a single failing run is not unusual.
+How to read this number: the first runs were not perfect (42 of 45 cases), and they found gaps in the system prompt, which I then fixed: the agent answered a general knowledge question from its own knowledge, in one run it silently changed an impossible date, and a manual test showed that it refused to explain its own tools. I tuned the prompt on these same questions, so the final score is not an independent test. It is a small regression suite that shows the behaviour holds, and it should grow with new questions. It covers one model and 3 runs per case, and the model is not deterministic, so a single failing run is not unusual.
 
 ## 10. Data sources and terms
 
