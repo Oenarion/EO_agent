@@ -82,7 +82,12 @@ def create_app(runtime: AgentRuntime | None = None) -> FastAPI:
     @app.get("/health")
     async def health() -> dict[str, Any]:
         rt = app.state.runtime
-        return {"status": "ok", "mcp_connected": rt.mcp_connected, "mcp_error": rt.mcp_error, "model": rt.settings.llm_model}
+        s = rt.settings
+        return {
+            "status": "ok", "mcp_connected": rt.mcp_connected, "mcp_error": rt.mcp_error, "model": s.llm_model,
+            "context_policy": {"max_window": s.max_window, "summary_trigger": s.summary_trigger,
+                               "max_tool_chars": s.max_tool_chars, "max_steps": s.max_steps},
+        }
 
     return app
 
