@@ -20,8 +20,9 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from eo_agent.agent.context import (
-    build_model_input, cut_for_summary, message_chars, summarize, truncate_tool_content,
+    build_model_input, cut_for_summary, message_chars, message_text, summarize, truncate_tool_content,
 )
+from eo_agent.agent.errors import describe, safety_net_reply, tool_error_message
 from eo_agent.agent.state import AgentState, update_working_memory
 from eo_agent.config import Settings, get_settings
 
@@ -39,9 +40,9 @@ def _text_of(content: Any) -> str:
 
 
 def _error_message(call: dict[str, Any], detail: str) -> ToolMessage:
-    text = f"Tool '{call['name']}' failed. Arguments: {json.dumps(call['args'])}. Error: {detail}"
-    log.error("tool=%s error=%s", call["name"], detail)
-    return ToolMessage(content=text, name=call["name"], tool_call_id=call["id"], status="error")
+    # The session id is added to this log line automatically (see observability/tracing.py).
+    log.error("tool=%s args=%s error=%s", call["name"], json.dumps(call["args"]), detail)
+    return tool_error_message(call["name"], call["id"], call["args"], detail)
 
 
 def build_graph(
@@ -86,6 +87,10 @@ def build_graph(
         limit_reached = state.get("step_count", 0) >= settings.max_steps
         model = llm if limit_reached else llm_with_tools  # no tools bound once the limit is hit
         reply = await model.ainvoke(state["model_input"])
+        if not getattr(reply, "tool_calls", None) and not message_text(reply).strip():
+            # Safety net: never return an empty answer. After a tool error this says what was attempted.
+            log.warning("the model returned an empty answer, using the fixed reply")
+            reply = AIMessage(content=safety_net_reply(state["messages"]))
         stats = dict(state.get("context_stats") or {})
         usage = getattr(reply, "usage_metadata", None) or {}  # tokens, only if the provider reports them
         if usage:
@@ -103,7 +108,7 @@ def build_graph(
             try:
                 raw = await tool.ainvoke(call)
             except Exception as exc:  # connection refused, timeout, protocol error: never crash the turn
-                results.append(_error_message(call, f"{type(exc).__name__}: {exc}"))
+                results.append(_error_message(call, describe(exc)))
                 continue
             if raw.status == "error":
                 results.append(_error_message(call, _text_of(raw.content)))

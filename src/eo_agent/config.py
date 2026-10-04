@@ -25,6 +25,7 @@ class Settings:
     summary_trigger: int = _int("SUMMARY_TRIGGER", 12)
     summary_max_chars: int = _int("SUMMARY_MAX_CHARS", 1200)
     max_steps: int = _int("MAX_STEPS", 6)
+    trace_dir: str = os.getenv("TRACE_DIR", "traces")
 
 
 def get_settings() -> Settings:
