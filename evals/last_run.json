@@ -1,0 +1,3045 @@
+{
+ "model": "gemma4:31b-cloud",
+ "date": "2026-10-04",
+ "repeats": 3,
+ "summary": {
+  "cases_run": 45,
+  "cases_passed": 45,
+  "checks_run": 222,
+  "checks_passed": 222,
+  "by_tag": {
+   "disclosure": {
+    "passed": 9,
+    "total": 9
+   },
+   "empty": {
+    "passed": 15,
+    "total": 15
+   },
+   "groundedness": {
+    "passed": 60,
+    "total": 60
+   },
+   "invalid": {
+    "passed": 54,
+    "total": 54
+   },
+   "memory": {
+    "passed": 21,
+    "total": 21
+   },
+   "tool": {
+    "passed": 63,
+    "total": 63
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "search_basic",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: tools called in order ['geocode_place', 'search_scenes']",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['geocode_place', 'search_scenes']"
+    },
+    {
+     "name": "the reply lists scenes from the results",
+     "tag": "tool",
+     "ok": true,
+     "detail": "5 of 5 result ids cited"
+    },
+    {
+     "name": "the reply says which Ravenna it used",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\\n\\nI found 5 scenes matching your criteria:\\n\\n1. `S2C_32TQQ_20250731_0_L2A'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 scenes matching your criteria:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "follow_up_second_one",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "details requested for the second scene of the first search",
+     "tag": "memory",
+     "ok": true,
+     "detail": "expected S2A_32TQQ_20250723_0_L2A, called with ['S2A_32TQQ_20250723_0_L2A']"
+    },
+    {
+     "name": "turn 2: search_scenes not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['get_scene_details']"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for this search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Give me the details of the second one.",
+     "reply": "Here are the details for scene `S2A_32TQQ_20250723_0_L2A`:\n\n- **Acquisition Time**: 2025-07-23T10:18:44.182000Z\n- **Cloud Cover**: 2.437716%\n- **Satellite**: sentinel-2a\n- **Tile**: 32TQQ\n- **Sun Elevation**: 62.4881°\n- **Footprint BBox**: [11.499862, 44.09978, 12.936084, 45.125516]\n- **Thumbnail**: [Link](https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/T/QQ/2025/7/S2A_32TQQ_20250723_0_L2A/preview.jpg)\n- **Available Assets**: aot, blue, cloud, coastal, granule_metadata, green, nir, nir08, nir09, product_metadata, red, rededge1, rededge2, rededge3, scl, snow, swir16, swir22, tileinfo_metadata, visual, wvp, thumbnail",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2A_32TQQ_20250723_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "follow_up_value_from_memory",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 2: answered without any tool",
+     "tag": "memory",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the reply gives the cloud cover from the first search",
+     "tag": "memory",
+     "ok": true,
+     "detail": "expected 1.4 in the reply"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "What is the cloud cover of the first scene?",
+     "reply": "The cloud cover of the first scene (`S2C_32TQQ_20250731_0_L2A`) is 1.402733%.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "same_area_new_filter",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the second search reuses area and dates and uses the new filter",
+     "tag": "memory",
+     "ok": true,
+     "detail": "turn 2 search args: {'bbox': [12.1381, 44.3684, 12.2643, 44.4585], 'end_date': '2025-07-31', 'max_cloud_cover': 3, 'start_date': '2025-07-01'}"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Same area and dates, but only scenes under 3% cloud cover.",
+     "reply": "I found 2 scenes over Ravenna in July 2025 with less than 3% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31T10:18:46.243000Z | cloud 1.402733%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23T10:18:44.182000Z | cloud 2.437716%",
+     "tools": [
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 3,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "empty_result",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the search ran and found nothing",
+     "tag": "empty",
+     "ok": true,
+     "detail": "search ran and returned an empty list"
+    },
+    {
+     "name": "the reply says that nothing was found",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\\n\\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to tr'"
+    },
+    {
+     "name": "the reply asks a follow-up question",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\\n\\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to tr'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Ravenna, Italy in July 2025 with 0% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\n\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to try a higher cloud cover limit or a wider date range?",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 0,
+        "min_cloud_cover": 0,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "min_cloud_filter",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "2 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the search uses min_cloud_cover of at least 50",
+     "tag": "tool",
+     "ok": true,
+     "detail": "args: {'bbox': [11.6502, 44.3141, 11.7762, 44.4042], 'end_date': '2026-09-30', 'max_cloud_cover': 100, 'min_cloud_cover': 50, 'start_date': '2026-09-01'}"
+    },
+    {
+     "name": "every scene in the reply has at least 50% cloud cover",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "cited 2, below 50% cloud: []"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Imola, Italy in September 2026 with more than 50% cloud cover.",
+     "reply": "I used Imola, Emilia-Romagna, Italy (other places with that name exist). I found 2 scenes matching your criteria:\n\n1. `S2B_32TQQ_20260909_0_L2A` | 2026-09-09 | cloud cover: 93.452215%\n2. `S2C_32TQQ_20260924_0_L2A` | 2026-09-24 | cloud cover: 99.905401%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Imola, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         11.6502,
+         44.3141,
+         11.7762,
+         44.4042
+        ],
+        "end_date": "2026-09-30",
+        "max_cloud_cover": 100,
+        "min_cloud_cover": 50,
+        "start_date": "2026-09-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "unknown_place",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "geocoding ran and found nothing",
+     "tag": "empty",
+     "ok": true,
+     "detail": "geocoding ran and returned no candidate"
+    },
+    {
+     "name": "turn 1: search_scenes not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['geocode_place']"
+    },
+    {
+     "name": "the reply says the place was not found",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I could not find a place named \"Xyzzyqwkj\". Please provide a more precise or correct place name.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Xyzzyqwkj in July 2025.",
+     "reply": "I could not find a place named \"Xyzzyqwkj\". Please provide a more precise or correct place name.",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Xyzzyqwkj"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "ambiguous_place",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply names the Springfield it used",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "candidates: ['Missouri', 'Illinois', 'Massachusetts', 'United States', 'United States', 'United States'], mentioned: ['Missouri', 'United States', 'United States', 'United States']"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Springfield in June 2025 with less than 20% cloud cover.",
+     "reply": "I used Springfield, Missouri, United States (other places with that name exist).\n\nThere are 6 scenes in total; here are the first 5:\n\n1. `S2B_15SVB_20250609_0_L2A` | 2025-06-09 | cloud 0.001311%\n2. `S2C_15SVB_20250601_0_L2A` | 2025-06-01 | cloud 0.009052%\n3. `S2B_15SVB_20250619_0_L2A` | 2025-06-19 | cloud 1.407852%\n4. `S2C_15SVB_20250621_0_L2A` | 2025-06-21 | cloud 1.484266%\n5. `S2B_15SVB_20250626_0_L2A` | 2025-06-26 | cloud 9.460355%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Springfield"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         -93.3548,
+         37.1703,
+         -93.2417,
+         37.2604
+        ],
+        "end_date": "2025-06-30",
+        "max_cloud_cover": 20,
+        "start_date": "2025-06-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "unknown_scene_id",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "every failed tool was reported"
+    },
+    {
+     "name": "get_scene_details was called and failed",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "calls: [({'scene_id': 'S2X_DOES_NOT_EXIST'}, False)]"
+    },
+    {
+     "name": "the reply gives no invented cloud cover",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I tried to retrieve the details for scene `S2X_DOES_NOT_EXIST`, but it failed because no Sentinel-2 L2A scene with that ID exists in the catalogue.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Give me the details of scene S2X_DOES_NOT_EXIST.",
+     "reply": "I tried to retrieve the details for scene `S2X_DOES_NOT_EXIST`, but it failed because no Sentinel-2 L2A scene with that ID exists in the catalogue.",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2X_DOES_NOT_EXIST"
+       },
+       "ok": false
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "area_too_large",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "every failed tool was reported"
+    },
+    {
+     "name": "the reply explains the area is too large",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "reply: 'I tried to search for scenes in the specified area, but the request failed because the bounding box is too large; each side must be at most 2 degrees. Please pr'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes with less than 10% cloud cover in July 2025 for the area between longitude 5 and 12 and latitude 40 and 46.",
+     "reply": "I tried to search for scenes in the specified area, but the request failed because the bounding box is too large; each side must be at most 2 degrees. Please provide a smaller area.",
+     "tools": [
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         5,
+         40,
+         12,
+         46
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": false
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "impossible_date",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "2 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply deals with the date that does not exist",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist). Since 2025-02-30 is an invalid date, I assumed a start date of 2025-02-28.\\n\\nI found 2'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Ravenna, Italy from 2025-02-30 to 2025-03-05.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy (other places with that name exist). Since 2025-02-30 is an invalid date, I assumed a start date of 2025-02-28.\n\nI found 2 scenes:\n1. `S2C_32TQQ_20250303_0_L2A` | 2025-03-03 | cloud 0.003364%\n2. `S2B_32TQQ_20250305_0_L2A` | 2025-03-05 | cloud 0.004916%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-03-05",
+        "start_date": "2025-02-28"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "missing_data_is_declared",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply ends with a Missing data line",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "reply: 'I cannot provide the vegetation percentage because the available tools do not provide calculated indices or land cover statistics; they only provide scene metad'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search. Other places with the name Ravenna exist.\n\nI found 5 scenes matching your criteria:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "What is the vegetation percentage of the first scene?",
+     "reply": "I cannot provide the vegetation percentage because the available tools do not provide calculated indices or land cover statistics; they only provide scene metadata and available bands.\n\nMissing data: vegetation percentage",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2C_32TQQ_20250731_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "platform_from_details",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "details were requested in turn 2",
+     "tag": "memory",
+     "ok": true,
+     "detail": "get_scene_details ran in turn 2"
+    },
+    {
+     "name": "the reply names the satellite from the details",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "expected sentinel-2a"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Venice, Italy in August 2025 with less than 5% cloud cover.",
+     "reply": "I used Venice, Veneto, Italy for this search; other places with that name exist. I found 5 scenes matching your criteria:\n\n1. `S2A_32TQR_20250812_0_L2A` | 2025-08-12 | cloud 0.009051%\n2. `S2B_32TQR_20250812_1_L2A` | 2025-08-12 | cloud 0.009649%\n3. `S2A_32TQR_20250809_0_L2A` | 2025-08-09 | cloud 0.01009%\n4. `S2B_32TQR_20250815_0_L2A` | 2025-08-15 | cloud 1.193729%\n5. `S2C_32TQR_20250807_0_L2A` | 2025-08-07 | cloud 2.021429%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Venice, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.2685,
+         45.3921,
+         12.3968,
+         45.4822
+        ],
+        "end_date": "2025-08-31",
+        "max_cloud_cover": 5,
+        "start_date": "2025-08-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Give me the details of the third one.",
+     "reply": "Here are the details for scene `S2A_32TQR_20250809_0_L2A`:\n\n- **Acquisition Time**: 2025-08-09T10:08:27.697000Z\n- **Cloud Cover**: 0.01009%\n- **Satellite**: sentinel-2a\n- **Tile**: 32TQR\n- **Sun Elevation**: 56.96°\n- **Footprint BBox**: [12.153917, 44.997597, 12.999307, 46.00026]\n- **Thumbnail**: [Link](https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/T/QR/2025/8/S2A_32TQR_20250809_0_L2A/preview.jpg)\n- **Available Assets**: aot, blue, cloud, coastal, granule_metadata, green, nir, nir08, nir09, product_metadata, red, rededge1, rededge2, rededge3, scl, snow, swir16, swir22, tileinfo_metadata, visual, wvp, thumbnail",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2A_32TQR_20250809_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Which satellite took it?",
+     "reply": "The scene `S2A_32TQR_20250809_0_L2A` was taken by the sentinel-2a satellite.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "reference_without_context",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: get_scene_details not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the agent asks what the user means",
+     "tag": "memory",
+     "ok": true,
+     "detail": "reply: 'The session memory is currently empty, and no scenes have been searched yet. Please tell me which place and date range you are interested in so I can find some '"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Give me the details of the third one.",
+     "reply": "The session memory is currently empty, and no scenes have been searched yet. Please tell me which place and date range you are interested in so I can find some scenes for you.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "out_of_scope",
+   "run": 1,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: answered without any tool",
+     "tag": "memory",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the agent does not answer from its own knowledge",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.'"
+    },
+    {
+     "name": "the agent says the question is outside what it does",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "What is the capital of France?",
+     "reply": "I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "search_basic",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: tools called in order ['geocode_place', 'search_scenes']",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['geocode_place', 'search_scenes']"
+    },
+    {
+     "name": "the reply lists scenes from the results",
+     "tag": "tool",
+     "ok": true,
+     "detail": "5 of 5 result ids cited"
+    },
+    {
+     "name": "the reply says which Ravenna it used",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\\n\\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 1'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "follow_up_second_one",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "details requested for the second scene of the first search",
+     "tag": "memory",
+     "ok": true,
+     "detail": "expected S2A_32TQQ_20250723_0_L2A, called with ['S2A_32TQQ_20250723_0_L2A']"
+    },
+    {
+     "name": "turn 2: search_scenes not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['get_scene_details']"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for this search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes matching your criteria:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Give me the details of the second one.",
+     "reply": "Here are the details for scene `S2A_32TQQ_20250723_0_L2A`:\n\n- **Acquisition Time**: 2025-07-23T10:18:44.182000Z\n- **Cloud Cover**: 2.437716%\n- **Satellite**: sentinel-2a\n- **Tile**: 32TQQ\n- **Sun Elevation**: 62.4881095758032°\n- **Footprint BBox**: [11.499862, 44.09978, 12.936084, 45.125516]\n- **Thumbnail**: [Link](https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/T/QQ/2025/7/S2A_32TQQ_20250723_0_L2A/preview.jpg)\n- **Available Assets**: aot, blue, cloud, coastal, granule_metadata, green, nir, nir08, nir09, product_metadata, red, rededge1, rededge2, rededge3, scl, snow, swir16, swir22, tileinfo_metadata, visual, wvp, thumbnail",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2A_32TQQ_20250723_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "follow_up_value_from_memory",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 2: answered without any tool",
+     "tag": "memory",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the reply gives the cloud cover from the first search",
+     "tag": "memory",
+     "ok": true,
+     "detail": "expected 1.4 in the reply"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for this search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "What is the cloud cover of the first scene?",
+     "reply": "The cloud cover of the first scene (`S2C_32TQQ_20250731_0_L2A`) is 1.402733%.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "same_area_new_filter",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the second search reuses area and dates and uses the new filter",
+     "tag": "memory",
+     "ok": true,
+     "detail": "turn 2 search args: {'bbox': [12.1381, 44.3684, 12.2643, 44.4585], 'end_date': '2025-07-31', 'max_cloud_cover': 3, 'start_date': '2025-07-01'}"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for this search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Same area and dates, but only scenes under 3% cloud cover.",
+     "reply": "I found 2 scenes over Ravenna in July 2025 with less than 3% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31T10:18:46.243000Z | cloud 1.402733%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23T10:18:44.182000Z | cloud 2.437716%",
+     "tools": [
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 3,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "empty_result",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the search ran and found nothing",
+     "tag": "empty",
+     "ok": true,
+     "detail": "search ran and returned an empty list"
+    },
+    {
+     "name": "the reply says that nothing was found",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\\n\\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to tr'"
+    },
+    {
+     "name": "the reply asks a follow-up question",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\\n\\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to tr'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Ravenna, Italy in July 2025 with 0% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\n\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to try a higher cloud cover limit or a wider date range?",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 0,
+        "min_cloud_cover": 0,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "min_cloud_filter",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "2 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the search uses min_cloud_cover of at least 50",
+     "tag": "tool",
+     "ok": true,
+     "detail": "args: {'bbox': [11.6502, 44.3141, 11.7762, 44.4042], 'end_date': '2026-09-30', 'max_cloud_cover': 100, 'min_cloud_cover': 50, 'start_date': '2026-09-01'}"
+    },
+    {
+     "name": "every scene in the reply has at least 50% cloud cover",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "cited 2, below 50% cloud: []"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Imola, Italy in September 2026 with more than 50% cloud cover.",
+     "reply": "I used Imola, Emilia-Romagna, Italy (other places with that name exist). I found 2 scenes matching your criteria:\n\n1. `S2B_32TQQ_20260909_0_L2A` | 2026-09-09 | cloud cover: 93.452215%\n2. `S2C_32TQQ_20260924_0_L2A` | 2026-09-24 | cloud cover: 99.905401%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Imola, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         11.6502,
+         44.3141,
+         11.7762,
+         44.4042
+        ],
+        "end_date": "2026-09-30",
+        "max_cloud_cover": 100,
+        "min_cloud_cover": 50,
+        "start_date": "2026-09-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "unknown_place",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "geocoding ran and found nothing",
+     "tag": "empty",
+     "ok": true,
+     "detail": "geocoding ran and returned no candidate"
+    },
+    {
+     "name": "turn 1: search_scenes not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['geocode_place']"
+    },
+    {
+     "name": "the reply says the place was not found",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I could not find a place named \"Xyzzyqwkj\". Please provide a more precise or correct place name.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Xyzzyqwkj in July 2025.",
+     "reply": "I could not find a place named \"Xyzzyqwkj\". Please provide a more precise or correct place name.",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Xyzzyqwkj"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "ambiguous_place",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply names the Springfield it used",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "candidates: ['Missouri', 'Illinois', 'Massachusetts', 'United States', 'United States', 'United States'], mentioned: ['Missouri', 'United States', 'United States', 'United States']"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Springfield in June 2025 with less than 20% cloud cover.",
+     "reply": "I used Springfield, Missouri, United States (other places with that name exist).\n\nThere are 6 scenes in total; here are the first 5:\n\n1. `S2B_15SVB_20250609_0_L2A` | 2025-06-09 | cloud 0.001311%\n2. `S2C_15SVB_20250601_0_L2A` | 2025-06-01 | cloud 0.009052%\n3. `S2B_15SVB_20250619_0_L2A` | 2025-06-19 | cloud 1.407852%\n4. `S2C_15SVB_20250621_0_L2A` | 2025-06-21 | cloud 1.484266%\n5. `S2B_15SVB_20250626_0_L2A` | 2025-06-26 | cloud 9.460355%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Springfield"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         -93.3548,
+         37.1703,
+         -93.2417,
+         37.2604
+        ],
+        "end_date": "2025-06-30",
+        "max_cloud_cover": 20,
+        "start_date": "2025-06-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "unknown_scene_id",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "every failed tool was reported"
+    },
+    {
+     "name": "get_scene_details was called and failed",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "calls: [({'scene_id': 'S2X_DOES_NOT_EXIST'}, False)]"
+    },
+    {
+     "name": "the reply gives no invented cloud cover",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I tried to retrieve the details for scene `S2X_DOES_NOT_EXIST`, but it failed because no Sentinel-2 L2A scene with that ID exists in the catalogue.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Give me the details of scene S2X_DOES_NOT_EXIST.",
+     "reply": "I tried to retrieve the details for scene `S2X_DOES_NOT_EXIST`, but it failed because no Sentinel-2 L2A scene with that ID exists in the catalogue.",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2X_DOES_NOT_EXIST"
+       },
+       "ok": false
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "area_too_large",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "every failed tool was reported"
+    },
+    {
+     "name": "the reply explains the area is too large",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "reply: 'I tried to search for scenes in the specified area, but the request failed because the bounding box is too large; each side must be at most 2 degrees. Please pr'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes with less than 10% cloud cover in July 2025 for the area between longitude 5 and 12 and latitude 40 and 46.",
+     "reply": "I tried to search for scenes in the specified area, but the request failed because the bounding box is too large; each side must be at most 2 degrees. Please provide a smaller area.",
+     "tools": [
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         5,
+         40,
+         12,
+         46
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": false
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "impossible_date",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "2 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply deals with the date that does not exist",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist). Since 2025-02-30 is an invalid date, I assumed a start date of 2025-02-28.\\n\\nI found 2'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Ravenna, Italy from 2025-02-30 to 2025-03-05.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy (other places with that name exist). Since 2025-02-30 is an invalid date, I assumed a start date of 2025-02-28.\n\nI found 2 scenes:\n1. `S2C_32TQQ_20250303_0_L2A` | 2025-03-03 | cloud 0.003364%\n2. `S2B_32TQQ_20250305_0_L2A` | 2025-03-05 | cloud 0.004916%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-03-05",
+        "start_date": "2025-02-28"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "missing_data_is_declared",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply ends with a Missing data line",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "reply: 'I cannot provide the vegetation percentage because the available tools do not provide land cover analysis or vegetation indices; they only provide scene metadat'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "What is the vegetation percentage of the first scene?",
+     "reply": "I cannot provide the vegetation percentage because the available tools do not provide land cover analysis or vegetation indices; they only provide scene metadata and available bands.\n\nMissing data: vegetation percentage",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2C_32TQQ_20250731_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "platform_from_details",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "details were requested in turn 2",
+     "tag": "memory",
+     "ok": true,
+     "detail": "get_scene_details ran in turn 2"
+    },
+    {
+     "name": "the reply names the satellite from the details",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "expected sentinel-2a"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Venice, Italy in August 2025 with less than 5% cloud cover.",
+     "reply": "I used Venice, Veneto, Italy for the search; other places with that name exist. I found 5 scenes matching your criteria:\n\n1. `S2A_32TQR_20250812_0_L2A` | 2025-08-12 | cloud 0.009051%\n2. `S2B_32TQR_20250812_1_L2A` | 2025-08-12 | cloud 0.009649%\n3. `S2A_32TQR_20250809_0_L2A` | 2025-08-09 | cloud 0.01009%\n4. `S2B_32TQR_20250815_0_L2A` | 2025-08-15 | cloud 1.193729%\n5. `S2C_32TQR_20250807_0_L2A` | 2025-08-07 | cloud 2.021429%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Venice, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.2685,
+         45.3921,
+         12.3968,
+         45.4822
+        ],
+        "end_date": "2025-08-31",
+        "max_cloud_cover": 5,
+        "start_date": "2025-08-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Give me the details of the third one.",
+     "reply": "Here are the details for scene `S2A_32TQR_20250809_0_L2A`:\n\n- **Acquisition Time**: 2025-08-09T10:08:27.697000Z\n- **Cloud Cover**: 0.01009%\n- **Satellite**: sentinel-2a\n- **Tile**: 32TQR\n- **Sun Elevation**: 56.96°\n- **Footprint BBox**: [12.153917, 44.997597, 12.999307, 46.00026]\n- **Thumbnail**: [Link](https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/T/QR/2025/8/S2A_32TQR_20250809_0_L2A/preview.jpg)\n- **Available Assets**: aot, blue, cloud, coastal, granule_metadata, green, nir, nir08, nir09, product_metadata, red, rededge1, rededge2, rededge3, scl, snow, swir16, swir22, tileinfo_metadata, visual, wvp, thumbnail",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2A_32TQR_20250809_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Which satellite took it?",
+     "reply": "The scene `S2A_32TQR_20250809_0_L2A` was taken by the sentinel-2a satellite.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "reference_without_context",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: get_scene_details not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the agent asks what the user means",
+     "tag": "memory",
+     "ok": true,
+     "detail": "reply: 'The session memory is currently empty, and no scenes have been searched yet. Could you please tell me which place and date range you are interested in?'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Give me the details of the third one.",
+     "reply": "The session memory is currently empty, and no scenes have been searched yet. Could you please tell me which place and date range you are interested in?",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "out_of_scope",
+   "run": 2,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: answered without any tool",
+     "tag": "memory",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the agent does not answer from its own knowledge",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.'"
+    },
+    {
+     "name": "the agent says the question is outside what it does",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "What is the capital of France?",
+     "reply": "I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "search_basic",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: tools called in order ['geocode_place', 'search_scenes']",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['geocode_place', 'search_scenes']"
+    },
+    {
+     "name": "the reply lists scenes from the results",
+     "tag": "tool",
+     "ok": true,
+     "detail": "5 of 5 result ids cited"
+    },
+    {
+     "name": "the reply says which Ravenna it used",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\\n\\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 1'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "follow_up_second_one",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "details requested for the second scene of the first search",
+     "tag": "memory",
+     "ok": true,
+     "detail": "expected S2A_32TQQ_20250723_0_L2A, called with ['S2A_32TQQ_20250723_0_L2A']"
+    },
+    {
+     "name": "turn 2: search_scenes not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['get_scene_details']"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for this search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Give me the details of the second one.",
+     "reply": "Here are the details for scene `S2A_32TQQ_20250723_0_L2A`:\n\n- **Acquisition Time**: 2025-07-23T10:18:44.182000Z\n- **Cloud Cover**: 2.437716%\n- **Satellite**: sentinel-2a\n- **Tile**: 32TQQ\n- **Sun Elevation**: 62.4881095758032°\n- **Footprint BBox**: [11.499862, 44.09978, 12.936084, 45.125516]\n- **Thumbnail**: [Link](https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/T/QQ/2025/7/S2A_32TQQ_20250723_0_L2A/preview.jpg)\n- **Available Assets**: aot, blue, cloud, coastal, granule_metadata, green, nir, nir08, nir09, product_metadata, red, rededge1, rededge2, rededge3, scl, snow, swir16, swir22, tileinfo_metadata, visual, wvp, thumbnail",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2A_32TQQ_20250723_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "follow_up_value_from_memory",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 2: answered without any tool",
+     "tag": "memory",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the reply gives the cloud cover from the first search",
+     "tag": "memory",
+     "ok": true,
+     "detail": "expected 1.4 in the reply"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search. Other places with the name Ravenna exist.\n\nI found 5 scenes matching your criteria:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "What is the cloud cover of the first scene?",
+     "reply": "The cloud cover of the first scene (`S2C_32TQQ_20250731_0_L2A`) is 1.402733%.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "same_area_new_filter",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the second search reuses area and dates and uses the new filter",
+     "tag": "memory",
+     "ok": true,
+     "detail": "turn 2 search args: {'bbox': [12.1381, 44.3684, 12.2643, 44.4585], 'end_date': '2025-07-31', 'max_cloud_cover': 3, 'start_date': '2025-07-01'}"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Same area and dates, but only scenes under 3% cloud cover.",
+     "reply": "I found 2 Sentinel-2 scenes over Ravenna in July 2025 with less than 3% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31T10:18:46.243000Z | cloud 1.402733%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23T10:18:44.182000Z | cloud 2.437716%",
+     "tools": [
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 3,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "empty_result",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the search ran and found nothing",
+     "tag": "empty",
+     "ok": true,
+     "detail": "search ran and returned an empty list"
+    },
+    {
+     "name": "the reply says that nothing was found",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\\n\\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to tr'"
+    },
+    {
+     "name": "the reply asks a follow-up question",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\\n\\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to tr'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Ravenna, Italy in July 2025 with 0% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy (other places with that name exist).\n\nNo scenes were found for July 2025 with exactly 0% cloud cover. Would you like to try a higher cloud cover limit or a wider date range?",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 0,
+        "min_cloud_cover": 0,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "min_cloud_filter",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "2 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the search uses min_cloud_cover of at least 50",
+     "tag": "tool",
+     "ok": true,
+     "detail": "args: {'bbox': [11.6502, 44.3141, 11.7762, 44.4042], 'end_date': '2026-09-30', 'max_cloud_cover': 100, 'min_cloud_cover': 50, 'start_date': '2026-09-01'}"
+    },
+    {
+     "name": "every scene in the reply has at least 50% cloud cover",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "cited 2, below 50% cloud: []"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Imola, Italy in September 2026 with more than 50% cloud cover.",
+     "reply": "I used Imola, Emilia-Romagna, Italy (other places with that name exist). I found 2 scenes matching your criteria:\n\n1. `S2B_32TQQ_20260909_0_L2A` | 2026-09-09 | cloud cover: 93.452215%\n2. `S2C_32TQQ_20260924_0_L2A` | 2026-09-24 | cloud cover: 99.905401%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Imola, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         11.6502,
+         44.3141,
+         11.7762,
+         44.4042
+        ],
+        "end_date": "2026-09-30",
+        "max_cloud_cover": 100,
+        "min_cloud_cover": 50,
+        "start_date": "2026-09-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "unknown_place",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "geocoding ran and found nothing",
+     "tag": "empty",
+     "ok": true,
+     "detail": "geocoding ran and returned no candidate"
+    },
+    {
+     "name": "turn 1: search_scenes not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: ['geocode_place']"
+    },
+    {
+     "name": "the reply says the place was not found",
+     "tag": "empty",
+     "ok": true,
+     "detail": "reply: 'I could not find a place named \"Xyzzyqwkj\". Please provide a more precise or correct place name.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Xyzzyqwkj in July 2025.",
+     "reply": "I could not find a place named \"Xyzzyqwkj\". Please provide a more precise or correct place name.",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Xyzzyqwkj"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "ambiguous_place",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply names the Springfield it used",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "candidates: ['Missouri', 'Illinois', 'Massachusetts', 'United States', 'United States', 'United States'], mentioned: ['Missouri', 'United States', 'United States', 'United States']"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Springfield in June 2025 with less than 20% cloud cover.",
+     "reply": "I used Springfield, Missouri, United States (other places with that name exist).\n\nThere are 6 scenes in total; here are the first 5:\n\n1. `S2B_15SVB_20250609_0_L2A` | 2025-06-09 | cloud 0.001311%\n2. `S2C_15SVB_20250601_0_L2A` | 2025-06-01 | cloud 0.009052%\n3. `S2B_15SVB_20250619_0_L2A` | 2025-06-19 | cloud 1.407852%\n4. `S2C_15SVB_20250621_0_L2A` | 2025-06-21 | cloud 1.484266%\n5. `S2B_15SVB_20250626_0_L2A` | 2025-06-26 | cloud 9.460355%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Springfield"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         -93.3548,
+         37.1703,
+         -93.2417,
+         37.2604
+        ],
+        "end_date": "2025-06-30",
+        "max_cloud_cover": 20,
+        "start_date": "2025-06-01"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "unknown_scene_id",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "every failed tool was reported"
+    },
+    {
+     "name": "get_scene_details was called and failed",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "calls: [({'scene_id': 'S2X_DOES_NOT_EXIST'}, False)]"
+    },
+    {
+     "name": "the reply gives no invented cloud cover",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I tried to retrieve the details for scene `S2X_DOES_NOT_EXIST`, but it failed because no Sentinel-2 L2A scene with that ID exists in the catalogue.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Give me the details of scene S2X_DOES_NOT_EXIST.",
+     "reply": "I tried to retrieve the details for scene `S2X_DOES_NOT_EXIST`, but it failed because no Sentinel-2 L2A scene with that ID exists in the catalogue.",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2X_DOES_NOT_EXIST"
+       },
+       "ok": false
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "area_too_large",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "every failed tool was reported"
+    },
+    {
+     "name": "the reply explains the area is too large",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "reply: 'I tried to search for scenes in the specified area, but the request failed because the bounding box is too large; each side must be at most 2 degrees. Please pr'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes with less than 10% cloud cover in July 2025 for the area between longitude 5 and 12 and latitude 40 and 46.",
+     "reply": "I tried to search for scenes in the specified area, but the request failed because the bounding box is too large; each side must be at most 2 degrees. Please provide a smaller area.",
+     "tools": [
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         5,
+         40,
+         12,
+         46
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": false
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "impossible_date",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "2 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply deals with the date that does not exist",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "reply: 'I used Ravenna, Emilia-Romagna, Italy (other places with that name exist). Since 2025-02-30 is an invalid date, I assumed the start date to be 2025-02-28.\\n\\nI fo'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Ravenna, Italy from 2025-02-30 to 2025-03-05.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy (other places with that name exist). Since 2025-02-30 is an invalid date, I assumed the start date to be 2025-02-28.\n\nI found 2 scenes:\n1. `S2C_32TQQ_20250303_0_L2A` | 2025-03-03 | cloud 0.003364%\n2. `S2B_32TQQ_20250305_0_L2A` | 2025-03-05 | cloud 0.004916%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-03-05",
+        "start_date": "2025-02-28"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "missing_data_is_declared",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "the reply ends with a Missing data line",
+     "tag": "disclosure",
+     "ok": true,
+     "detail": "reply: 'I cannot provide the vegetation percentage because the available tools do not provide land cover analysis or vegetation indices; they only provide scene metadat'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover.",
+     "reply": "I used Ravenna, Emilia-Romagna, Italy for the search; other places with that name exist.\n\nI found 5 Sentinel-2 scenes over Ravenna in July 2025 with less than 10% cloud cover:\n\n1. `S2C_32TQQ_20250731_0_L2A` | 2025-07-31 | cloud 1.40%\n2. `S2A_32TQQ_20250723_0_L2A` | 2025-07-23 | cloud 2.44%\n3. `S2C_32TQQ_20250708_0_L2A` | 2025-07-08 | cloud 5.00%\n4. `S2A_32TQQ_20250730_0_L2A` | 2025-07-30 | cloud 7.02%\n5. `S2C_32TQQ_20250711_0_L2A` | 2025-07-11 | cloud 8.65%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Ravenna, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.1381,
+         44.3684,
+         12.2643,
+         44.4585
+        ],
+        "end_date": "2025-07-31",
+        "max_cloud_cover": 10,
+        "start_date": "2025-07-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "What is the vegetation percentage of the first scene?",
+     "reply": "I cannot provide the vegetation percentage because the available tools do not provide land cover analysis or vegetation indices; they only provide scene metadata and available bands.\n\nMissing data: vegetation percentage",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2C_32TQQ_20250731_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "platform_from_details",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "5 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "details were requested in turn 2",
+     "tag": "memory",
+     "ok": true,
+     "detail": "get_scene_details ran in turn 2"
+    },
+    {
+     "name": "the reply names the satellite from the details",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "expected sentinel-2a"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Find scenes over Venice, Italy in August 2025 with less than 5% cloud cover.",
+     "reply": "I used Venice, Veneto, Italy for the search; other places with that name exist. I found 5 scenes matching your criteria:\n\n1. `S2A_32TQR_20250812_0_L2A` | 2025-08-12 | cloud 0.009051%\n2. `S2B_32TQR_20250812_1_L2A` | 2025-08-12 | cloud 0.009649%\n3. `S2A_32TQR_20250809_0_L2A` | 2025-08-09 | cloud 0.01009%\n4. `S2B_32TQR_20250815_0_L2A` | 2025-08-15 | cloud 1.193729%\n5. `S2C_32TQR_20250807_0_L2A` | 2025-08-07 | cloud 2.021429%",
+     "tools": [
+      {
+       "tool": "geocode_place",
+       "args": {
+        "name": "Venice, Italy"
+       },
+       "ok": true
+      },
+      {
+       "tool": "search_scenes",
+       "args": {
+        "bbox": [
+         12.2685,
+         45.3921,
+         12.3968,
+         45.4822
+        ],
+        "end_date": "2025-08-31",
+        "max_cloud_cover": 5,
+        "start_date": "2025-08-01"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Give me the details of the third one.",
+     "reply": "Here are the details for scene `S2A_32TQR_20250809_0_L2A`:\n\n- **Acquisition Time**: 2025-08-09T10:08:27.697000Z\n- **Cloud Cover**: 0.01009%\n- **Satellite**: sentinel-2a\n- **Tile**: 32TQR\n- **Sun Elevation**: 56.96°\n- **Footprint BBox**: [12.153917, 44.997597, 12.999307, 46.00026]\n- **Thumbnail**: [Link](https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/T/QR/2025/8/S2A_32TQR_20250809_0_L2A/preview.jpg)\n- **Available Assets**: aot, blue, cloud, coastal, granule_metadata, green, nir, nir08, nir09, product_metadata, red, rededge1, rededge2, rededge3, scl, snow, swir16, swir22, tileinfo_metadata, visual, wvp, thumbnail",
+     "tools": [
+      {
+       "tool": "get_scene_details",
+       "args": {
+        "scene_id": "S2A_32TQR_20250809_0_L2A"
+       },
+       "ok": true
+      }
+     ]
+    },
+    {
+     "question": "Which satellite took it?",
+     "reply": "The scene `S2A_32TQR_20250809_0_L2A` was taken by the sentinel-2a satellite.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "reference_without_context",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: get_scene_details not called",
+     "tag": "tool",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the agent asks what the user means",
+     "tag": "memory",
+     "ok": true,
+     "detail": "reply: 'The session memory is currently empty, and no scenes have been searched yet. Please tell me which place and date range you are interested in so I can find some '"
+    }
+   ],
+   "turns": [
+    {
+     "question": "Give me the details of the third one.",
+     "reply": "The session memory is currently empty, and no scenes have been searched yet. Please tell me which place and date range you are interested in so I can find some scenes for you.",
+     "tools": []
+    }
+   ],
+   "error": null
+  },
+  {
+   "id": "out_of_scope",
+   "run": 3,
+   "passed": true,
+   "checks": [
+    {
+     "name": "no crash",
+     "tag": "tool",
+     "ok": true,
+     "detail": "every turn returned a non-empty reply"
+    },
+    {
+     "name": "scene ids come from tool results",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "0 id(s) cited, all found in tool results"
+    },
+    {
+     "name": "a failed tool is reported in the reply",
+     "tag": "invalid",
+     "ok": true,
+     "detail": "no tool failed"
+    },
+    {
+     "name": "turn 1: answered without any tool",
+     "tag": "memory",
+     "ok": true,
+     "detail": "called: []"
+    },
+    {
+     "name": "the agent does not answer from its own knowledge",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.'"
+    },
+    {
+     "name": "the agent says the question is outside what it does",
+     "tag": "groundedness",
+     "ok": true,
+     "detail": "reply: 'I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.'"
+    }
+   ],
+   "turns": [
+    {
+     "question": "What is the capital of France?",
+     "reply": "I only help with finding Sentinel-2 scenes and answering questions about them. I cannot answer general knowledge questions.",
+     "tools": []
+    }
+   ],
+   "error": null
+  }
+ ]
+}

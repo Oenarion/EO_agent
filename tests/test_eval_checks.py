@@ -1,0 +1,198 @@
+"""The evaluation is only as good as its checks, so the checks are tested here, offline,
+with sessions written by hand: each check must accept a good session and reject a bad one."""
+import json
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+from evals import cases as c
+from evals.checks import (
+    CaseRun, ToolRun, TurnRun, failure_reported, grounded_ids, no_tools, reply_matches, tool_not_called, tools_in_order,
+)
+from evals.run_eval import evaluate, summarize, tool_runs_of_turn
+
+ID_A, ID_B = "S2C_32TQQ_20250731_0_L2A", "S2A_32TQQ_20250723_0_L2A"
+SCENES = [
+    {"index": 1, "id": ID_A, "cloud_cover": 1.402733},
+    {"index": 2, "id": ID_B, "cloud_cover": 2.437716},
+]
+
+
+def tool(name, args=None, ok=True, data=None, content=None) -> ToolRun:
+    return ToolRun(name, args or {}, ok, content if content is not None else json.dumps(data or {}), data if ok else None)
+
+
+def search(args=None) -> ToolRun:
+    return tool("search_scenes", args or {"bbox": [1, 2, 3, 4], "start_date": "2025-07-01", "end_date": "2025-07-31", "max_cloud_cover": 10},
+                data={"scenes": SCENES})
+
+
+def run_of(*turns: TurnRun) -> CaseRun:
+    return CaseRun(turns=list(turns))
+
+
+# ---------- groundedness ----------
+
+def test_ids_from_tool_results_are_grounded():
+    run = run_of(TurnRun("q", f"Best scene: {ID_A}", [search()]))
+    assert grounded_ids().run(run).ok
+
+
+def test_an_invented_id_is_caught():
+    run = run_of(TurnRun("q", f"Best scene: {ID_A}, also S2A_32TQQ_20250101_0_L2A", [search()]))
+    result = grounded_ids().run(run)
+    assert not result.ok and "S2A_32TQQ_20250101_0_L2A" in result.detail
+
+
+def test_an_id_the_user_typed_may_be_repeated():
+    run = run_of(TurnRun(f"details of {ID_B}?", f"{ID_B} does not exist", []))
+    assert grounded_ids().run(run).ok
+
+
+def test_ids_from_an_earlier_turn_still_count():
+    run = run_of(TurnRun("q1", "found", [search()]), TurnRun("q2", f"The second is {ID_B}", []))
+    assert grounded_ids().run(run).ok
+
+
+# ---------- failures ----------
+
+def test_a_failed_tool_must_be_reported():
+    failed = tool("get_scene_details", ok=False, content="boom")
+    assert not failure_reported().run(run_of(TurnRun("q", "Here are your details!", [failed]))).ok
+    assert failure_reported().run(run_of(TurnRun("q", "I tried, but it failed: no such scene.", [failed]))).ok
+    assert failure_reported().run(run_of(TurnRun("q", "fine", [search()]))).ok  # nothing failed
+
+
+# ---------- tools ----------
+
+def test_tool_order_and_absence():
+    run = run_of(TurnRun("q", "r", [tool("geocode_place"), search()]))
+    assert tools_in_order(0, "geocode_place", "search_scenes").run(run).ok
+    assert not tools_in_order(0, "search_scenes", "geocode_place").run(run).ok
+    assert tool_not_called(0, "get_scene_details").run(run).ok
+    assert not tool_not_called(0, "search_scenes").run(run).ok
+    assert not no_tools(0).run(run).ok and no_tools(0).run(run_of(TurnRun("q", "r", []))).ok
+
+
+def test_reply_patterns():
+    run = run_of(TurnRun("q", "There are no scenes. Do you want a wider range?", []))
+    assert reply_matches(0, c.NOT_FOUND_WORDS, "n", "empty").run(run).ok
+    assert reply_matches(0, r"\?", "n", "empty").run(run).ok
+    assert not reply_matches(0, r"missing data", "n", "disclosure").run(run).ok
+
+
+# ---------- the data dependent checks of the cases ----------
+
+def test_second_scene_details():
+    good = run_of(TurnRun("q1", "r", [search()]), TurnRun("q2", "r", [tool("get_scene_details", {"scene_id": ID_B})]))
+    bad = run_of(TurnRun("q1", "r", [search()]), TurnRun("q2", "r", [tool("get_scene_details", {"scene_id": ID_A})]))
+    assert c.details_of_second(good)[0] and not c.details_of_second(bad)[0]
+
+
+def test_first_cloud_cover_from_memory():
+    assert c.states_first_cloud_cover(run_of(TurnRun("q1", "r", [search()]), TurnRun("q2", "It is 1.40%.", [])))[0]
+    assert not c.states_first_cloud_cover(run_of(TurnRun("q1", "r", [search()]), TurnRun("q2", "It is 9.9%.", [])))[0]
+
+
+def test_new_filter_reuses_area_and_dates():
+    first = search()
+    same = search({**first.args, "max_cloud_cover": 3})
+    other_area = search({**first.args, "bbox": [9, 9, 9.5, 9.5], "max_cloud_cover": 3})
+    wrong_filter = search({**first.args, "max_cloud_cover": 5})
+    assert c.search_reuses_area_and_dates(run_of(TurnRun("a", "r", [first]), TurnRun("b", "r", [same])))[0]
+    assert not c.search_reuses_area_and_dates(run_of(TurnRun("a", "r", [first]), TurnRun("b", "r", [other_area])))[0]
+    assert not c.search_reuses_area_and_dates(run_of(TurnRun("a", "r", [first]), TurnRun("b", "r", [wrong_filter])))[0]
+
+
+def test_cloudy_filter_rejects_clear_scenes_in_the_reply():
+    data = {"scenes": [{"id": ID_A, "cloud_cover": 93.4}, {"id": ID_B, "cloud_cover": 4.6}]}
+    s = ToolRun("search_scenes", {"min_cloud_cover": 50}, True, "{}", data)
+    assert c.cited_scenes_match_the_filter(run_of(TurnRun("q", f"{ID_A} has 93%", [s])))[0]
+    assert not c.cited_scenes_match_the_filter(run_of(TurnRun("q", f"{ID_A} and {ID_B}", [s])))[0]
+    assert not c.cited_scenes_match_the_filter(run_of(TurnRun("q", "no ids at all", [s])))[0]
+    assert c.uses_min_cloud_filter(run_of(TurnRun("q", "r", [s])))[0]
+    assert not c.uses_min_cloud_filter(run_of(TurnRun("q", "r", [search()])))[0]
+
+
+def test_ambiguous_place_must_name_the_choice():
+    places = tool("geocode_place", data={"result": [
+        {"region": "Missouri", "country": "United States"}, {"region": "Illinois", "country": "United States"}]})
+    assert c.names_the_chosen_place(run_of(TurnRun("q", "I used Springfield, Missouri.", [places])))[0]
+    assert not c.names_the_chosen_place(run_of(TurnRun("q", "Here are the scenes.", [places])))[0]
+
+
+def test_platform_in_the_reply_is_compared_without_punctuation():
+    details = tool("get_scene_details", data={"platform": "sentinel-2c"})
+    good = run_of(TurnRun("a", "r", [search()]), TurnRun("b", "r", [details]), TurnRun("c", "It was Sentinel-2C.", []))
+    bad = run_of(TurnRun("a", "r", [search()]), TurnRun("b", "r", [details]), TurnRun("c", "It was Sentinel-2A.", []))
+    assert c.states_the_platform(good)[0] and not c.states_the_platform(bad)[0]
+
+
+def test_unknown_scene_must_fail_in_the_tool():
+    assert c.failed_get_scene_details(run_of(TurnRun("q", "r", [tool("get_scene_details", ok=False)])))[0]
+    assert not c.failed_get_scene_details(run_of(TurnRun("q", "r", [tool("get_scene_details", data={"id": "x"})])))[0]
+    assert not c.failed_get_scene_details(run_of(TurnRun("q", "r", [])))[0]
+
+
+# ---------- the harness ----------
+
+def test_a_check_that_lacks_data_fails_instead_of_raising():
+    result = reply_matches(3, "x", "n", "t").run(run_of(TurnRun("q", "r", [])))  # no turn 4
+    assert not result.ok and "missing data" in result.detail
+
+
+def test_a_session_that_raised_fails_only_the_crash_check():
+    results = evaluate(c.CASES[0], CaseRun(turns=[], error="APIConnectionError: down"))
+    assert [r.name for r in results] == ["no crash"] and not results[0].ok
+
+
+def test_tool_runs_are_read_from_the_stored_messages():
+    messages = [
+        HumanMessage(content="older turn"), AIMessage(content="old answer"),
+        HumanMessage(content="find"),
+        AIMessage(content="", tool_calls=[{"name": "geocode_place", "args": {"name": "X"}, "id": "1", "type": "tool_call"}]),
+        ToolMessage(content='{"result":[]}', name="geocode_place", tool_call_id="1"),
+        AIMessage(content="", tool_calls=[{"name": "get_scene_details", "args": {"scene_id": "Z"}, "id": "2", "type": "tool_call"}]),
+        ToolMessage(content="Tool failed", name="get_scene_details", tool_call_id="2", status="error"),
+        AIMessage(content="answer"),
+    ]
+    runs = tool_runs_of_turn(messages)
+    assert [(r.tool, r.ok) for r in runs] == [("geocode_place", True), ("get_scene_details", False)]
+    assert runs[0].data == {"result": []} and runs[1].data is None
+
+
+def test_summary_counts_checks_per_tag():
+    results = [{"passed": True, "checks": [{"tag": "tool", "ok": True}, {"tag": "empty", "ok": True}]},
+               {"passed": False, "checks": [{"tag": "tool", "ok": False}]}]
+    s = summarize(results)
+    assert (s["cases_passed"], s["checks_passed"], s["checks_run"]) == (1, 2, 3)
+    assert s["by_tag"]["tool"] == {"passed": 1, "total": 2}
+
+
+def test_case_definitions_are_consistent():
+    ids = [case.id for case in c.CASES]
+    assert len(ids) == len(set(ids)) and 10 <= len(ids) <= 15
+    assert all(case.turns and case.checks for case in c.CASES)
+
+
+# ---------- checks that were corrected after the first run ----------
+
+def check_of(case_id: str, name_start: str):
+    case = next(x for x in c.CASES if x.id == case_id)
+    return next(k for k in case.checks if k.name.startswith(name_start))
+
+
+def test_asking_to_specify_counts_as_a_clarification():
+    check = check_of("reference_without_context", "the agent asks")
+    assert check.run(run_of(TurnRun("q", "Please specify a place and a date range.", []))).ok
+    assert check.run(run_of(TurnRun("q", "Which search do you mean?", []))).ok
+    assert not check.run(run_of(TurnRun("q", "Here are the details of the third scene.", []))).ok
+
+
+def test_offering_paris_imagery_is_not_answering_the_question():
+    answers = check_of("out_of_scope", "the agent does not answer")
+    refuses = check_of("out_of_scope", "the agent says")
+    offer = "I do not have a general knowledge base, but I can find satellite imagery of Paris."
+    assert answers.run(run_of(TurnRun("q", offer, []))).ok and refuses.run(run_of(TurnRun("q", offer, []))).ok
+    assert not answers.run(run_of(TurnRun("q", "Paris is the capital of France.", []))).ok
+    assert not answers.run(run_of(TurnRun("q", "The capital of France is Paris.", []))).ok
+    assert not refuses.run(run_of(TurnRun("q", "Paris!", []))).ok

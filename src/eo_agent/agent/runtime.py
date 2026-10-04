@@ -129,5 +129,12 @@ class AgentRuntime:
             "summary": snapshot.values.get("summary", ""),
         }
 
+    async def session_messages(self, session_id: str) -> list:
+        """The messages stored for a session (used by the evaluation to read the full tool results)."""
+        if self._graph is None:
+            return []
+        snapshot = await self._graph.aget_state({"configurable": {"thread_id": session_id}})
+        return list(snapshot.values.get("messages", []))
+
     def trace(self, session_id: str) -> list[dict[str, Any]]:
         return read_trace(self.settings.trace_dir, session_id)

@@ -18,7 +18,8 @@ user ──HTTP──> FastAPI ──> LangGraph agent ──MCP over HTTP──
 6. [MCP tools](#6-mcp-tools)
 7. [HTTP API](#7-http-api)
 8. [Persistence](#8-persistence)
-9. [Data sources and terms](#9-data-sources-and-terms)
+9. [Evaluation](#9-evaluation)
+10. [Data sources and terms](#10-data-sources-and-terms)
 
 ## 1. Quick start
 
@@ -65,6 +66,12 @@ python demo/run_demo.py
 ```
 
 The trace is also in `traces/<session_id>.jsonl`, and you can print it again with `python -m eo_agent.observability.pretty <session_id>`.
+
+**Chat with it.** An interactive client for the running API, with `/trace` and `/memory` commands:
+
+```bash
+python demo/chat.py
+```
 
 **Run the context demo.** A 15 turn conversation. It needs low thresholds in the API so that the policy triggers early, so restart the API like this:
 
@@ -194,7 +201,32 @@ The session id may contain letters, digits, `_`, `.` and `-` (up to 64 character
 
 Sessions are kept in memory (`InMemorySaver`), so they are lost when the API process restarts. The trace files stay on disk. To survive a restart I would swap in a persistent LangGraph checkpointer: `SqliteSaver` (package `langgraph-checkpoint-sqlite`) for a single process, or `PostgresSaver` (`langgraph-checkpoint-postgres`) for several processes. It is a change in `AgentRuntime` and one dependency, with the `thread_id` unchanged. I did not do it because in-memory is enough here, and a database adds setup for whoever runs the project. The turn counter would then move into the graph state.
 
-## 9. Data sources and terms
+## 9. Evaluation
+
+`evals/` has a small evaluation: 15 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
+
+```bash
+python -m evals.run_eval --repeat 3
+```
+
+Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, an unknown scene id produces a failure that the reply explains, a missing field is declared, and a question outside the scope is not answered from the model's own knowledge. The checks are themselves tested offline in `tests/test_eval_checks.py`.
+
+Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each case:
+
+| | Passed |
+| --- | --- |
+| Cases | 45 / 45 |
+| Checks | 222 / 222 |
+| Groundedness | 60 / 60 |
+| Tool use | 63 / 63 |
+| Memory (follow-ups) | 21 / 21 |
+| Empty and unknown results | 15 / 15 |
+| Invalid input and tool errors | 54 / 54 |
+| Disclosure (place used, missing data) | 9 / 9 |
+
+How to read this number: the first runs were not perfect (42 of 45 cases), and they found two gaps in the system prompt, which I then fixed: the agent answered a general knowledge question from its own knowledge, and in one run it silently changed an impossible date. I tuned the prompt on these same 15 questions, so the final score is not an independent test. It is a small regression suite that shows the behaviour holds, and it should grow with new questions. It covers one model and 3 runs per case, and the model is not deterministic, so a single failing run is not unusual.
+
+## 10. Data sources and terms
 
 - Scenes: Sentinel-2 L2A from the [Earth Search](https://earth-search.aws.element84.com/v1) STAC API by Element 84. Sentinel data are free and open under the Copernicus Sentinel data legal notice. No key is needed.
 - Geocoding: [Open-Meteo](https://open-meteo.com/) geocoding API, licensed CC BY 4.0. The free tier is for non-commercial use, which covers this project. Attribution: geocoding data by Open-Meteo.com.
