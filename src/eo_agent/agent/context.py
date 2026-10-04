@@ -23,7 +23,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from eo_agent.agent.prompts import LIMIT_NOTE, SUMMARY_PROMPT, system_prompt
-from eo_agent.config import Settings
+from eo_agent.config import DEFAULT_PLACE_LANGUAGE, LANGUAGE_NAMES, Settings
 
 log = logging.getLogger("eo_agent.context")
 
@@ -118,10 +118,17 @@ def truncate_tool_content(content: str, max_chars: int) -> str:
 
 # ---------- the SESSION MEMORY block ----------
 
-def render_memory(memory: dict[str, Any], summary: str = "") -> str:
+def render_memory(memory: dict[str, Any], summary: str = "", place_language: str = DEFAULT_PLACE_LANGUAGE) -> str:
     lines = ["SESSION MEMORY (kept by the system, reliable):"]
+    language = (f"- Place names are searched in {LANGUAGE_NAMES.get(place_language, place_language)}. "
+                "The user can change this setting with the /language command of the chat.")
     if not memory and not summary:
-        return lines[0] + " empty, nothing has been searched yet."
+        return lines[0] + " empty, nothing has been searched yet.\n" + language
+    lines.append(language)
+    used = memory.get("place_language_used")
+    if used and used != place_language:
+        lines.append(f"- The place name language was changed from {LANGUAGE_NAMES.get(used, used)} after the last place search: "
+                     "call geocode_place again for any place the user asks about, even one searched before.")
     place = memory.get("place")
     if place:
         label = ", ".join(str(place[k]) for k in ("name", "region", "country") if place.get(k)) or "unnamed area"
@@ -129,7 +136,9 @@ def render_memory(memory: dict[str, Any], summary: str = "") -> str:
     if memory.get("date_range"):
         lines.append(f"- Date range: {memory['date_range']['start']} to {memory['date_range']['end']}")
     if memory.get("max_cloud_cover") is not None:
-        lines.append(f"- Cloud cover filter: {memory.get('min_cloud_cover', 0)}% to {memory['max_cloud_cover']}%")
+        low, high = memory.get("min_cloud_cover", 0), memory["max_cloud_cover"]
+        lines.append("- Cloud cover filter in the last search: none" if (low, high) == (0, 100)
+                     else f"- Cloud cover filter in the last search: {low}% to {high}%")
     if "last_results" in memory:
         results = memory["last_results"]
         if results:
@@ -146,9 +155,10 @@ def render_memory(memory: dict[str, Any], summary: str = "") -> str:
 
 
 def build_model_input(
-    messages: list[BaseMessage], memory: dict[str, Any], summary: str, step_count: int, settings: Settings
+    messages: list[BaseMessage], memory: dict[str, Any], summary: str, step_count: int, settings: Settings,
+    place_language: str = DEFAULT_PLACE_LANGUAGE,
 ) -> list[BaseMessage]:
-    system = system_prompt() + "\n\n" + render_memory(memory, summary)
+    system = system_prompt() + "\n\n" + render_memory(memory, summary, place_language)
     if step_count >= settings.max_steps:
         system += LIMIT_NOTE
     window = compact_old_tool_payloads(messages)[window_start(messages, settings.max_window):]

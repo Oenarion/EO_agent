@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Path
 from pydantic import BaseModel, Field
 
 from eo_agent.agent.runtime import AgentRuntime
+from eo_agent.config import LANGUAGE_NAMES, PLACE_LANGUAGES
 from eo_agent.observability.tracing import SAFE_SESSION_ID, setup_logging
 
 log = logging.getLogger("eo_agent.api")
@@ -23,6 +24,10 @@ SESSION_ID_PATTERN = SAFE_SESSION_ID.pattern
 class ChatRequest(BaseModel):
     session_id: str = Field(pattern=SESSION_ID_PATTERN, description="Letters, digits, _ . - (max 64)")
     message: str = Field(min_length=1, max_length=4000)
+    language: str | None = Field(
+        None, pattern="^(" + "|".join(PLACE_LANGUAGES) + ")$",
+        description="Language in which place names are searched (en, it, es, fr, de). Optional: the session keeps its last setting, English at first.",
+    )
 
 
 class ToolCallInfo(BaseModel):
@@ -56,7 +61,7 @@ def create_app(runtime: AgentRuntime | None = None) -> FastAPI:
     @app.post("/chat", response_model=ChatResponse)
     async def chat(request: ChatRequest) -> ChatResponse:
         try:
-            result = await app.state.runtime.chat(request.session_id, request.message)
+            result = await app.state.runtime.chat(request.session_id, request.message, request.language)
         except openai.OpenAIError as exc:  # the language model could not be reached or refused
             log.error("language model call failed: %s: %s", type(exc).__name__, exc)
             raise HTTPException(503, "The language model is not available right now. Try again in a moment.")
@@ -85,6 +90,7 @@ def create_app(runtime: AgentRuntime | None = None) -> FastAPI:
         s = rt.settings
         return {
             "status": "ok", "mcp_connected": rt.mcp_connected, "mcp_error": rt.mcp_error, "model": s.llm_model,
+            "place_languages": {code: LANGUAGE_NAMES[code] for code in PLACE_LANGUAGES},
             "context_policy": {"max_window": s.max_window, "summary_trigger": s.summary_trigger,
                                "max_tool_chars": s.max_tool_chars, "max_steps": s.max_steps},
         }

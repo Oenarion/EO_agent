@@ -31,7 +31,7 @@ current_session: contextvars.ContextVar[str] = contextvars.ContextVar("current_s
 current_turn: contextvars.ContextVar[int] = contextvars.ContextVar("current_turn", default=0)
 
 SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
-NODE_NAMES = {"prepare_context", "agent", "tools", "update_memory"}
+NODE_NAMES = {"prepare_context", "agent", "tools", "update_memory", "cite"}
 SUMMARY_MARK = "You summarize"  # first words of SUMMARY_PROMPT: tells a summary call from an agent call
 
 
@@ -144,6 +144,9 @@ def _summarize_node(node: str, outputs: Any) -> tuple[str | None, dict[str, Any]
             return f"final answer ({len(_text(reply.content))} chars)", None
     if node == "tools":
         return ", ".join(f"{m.name}:{m.status}" for m in outputs.get("messages", [])), None
+    if node == "cite":
+        added = bool(outputs.get("messages"))
+        return ("added a Sources block to the answer" if added else "no known scene id in the answer, nothing added"), None
     if node == "update_memory":
         return "working memory keys: " + ", ".join(sorted((outputs.get("working_memory") or {}).keys())), None
     return None, None

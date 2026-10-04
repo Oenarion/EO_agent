@@ -19,7 +19,7 @@ from eo_agent.agent.context import last_human_index, message_text
 from eo_agent.agent.errors import MCP_DOWN_REPLY, describe
 from eo_agent.agent.graph import RECURSION_LIMIT, build_graph
 from eo_agent.agent.mcp_client import load_mcp_tools
-from eo_agent.config import Settings, get_settings
+from eo_agent.config import DEFAULT_PLACE_LANGUAGE, Settings, get_settings
 from eo_agent.llm import build_llm
 from eo_agent.observability.tracing import TraceHandler, TraceWriter, current_session, current_turn, read_trace
 
@@ -84,7 +84,7 @@ class AgentRuntime:
     def _lock_for(self, session_id: str) -> asyncio.Lock:
         return self._session_locks.setdefault(session_id, asyncio.Lock())
 
-    async def chat(self, session_id: str, message: str) -> ChatResult:
+    async def chat(self, session_id: str, message: str, language: str | None = None) -> ChatResult:
         turn = self._turns.get(session_id, 0) + 1
         self._turns[session_id] = turn
         session_token, turn_token = current_session.set(session_id), current_turn.set(turn)
@@ -99,7 +99,8 @@ class AgentRuntime:
                                 duration_ms=(time.perf_counter() - started) * 1000)
                     return ChatResult(session_id, MCP_DOWN_REPLY, turn)
                 state = await graph.ainvoke(
-                    {"messages": [("user", message)], "step_count": 0},  # step_count restarts every turn
+                    {"messages": [("user", message)], "step_count": 0,  # step_count restarts every turn
+                     **({"place_language": language} if language else {})},  # no language given: the session keeps its setting
                     config={"configurable": {"thread_id": session_id}, "recursion_limit": RECURSION_LIMIT,
                             "callbacks": [TraceHandler(writer)]},
                 )
@@ -127,6 +128,7 @@ class AgentRuntime:
             "messages_in_state": len(snapshot.values.get("messages", [])),
             "working_memory": snapshot.values.get("working_memory") or {},
             "summary": snapshot.values.get("summary", ""),
+            "place_language": snapshot.values.get("place_language", DEFAULT_PLACE_LANGUAGE),
         }
 
     async def session_messages(self, session_id: str) -> list:

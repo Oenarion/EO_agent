@@ -44,7 +44,7 @@ def test_each_turn_has_start_nodes_model_calls_tools_and_end_in_order(tmp_path):
     assert turn1[0]["event"] == "request_start" and turn1[0]["args"] == {"message": "find scenes"}
     assert turn1[-1]["event"] == "request_end"
     nodes = [e["node"] for e in turn1 if e["event"] == "node"]
-    assert nodes == ["prepare_context", "agent", "tools", "update_memory", "prepare_context", "agent"]
+    assert nodes == ["prepare_context", "agent", "tools", "update_memory", "prepare_context", "agent", "cite"]
     assert [e["tool"] for e in turn1 if e["event"] == "tool_call"] == ["search_scenes"]
     llm = [e for e in turn1 if e["event"] == "llm_call"]
     assert len(llm) == 2 and llm[0]["result_summary"] == "requested tools: search_scenes"

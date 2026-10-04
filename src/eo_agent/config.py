@@ -8,6 +8,11 @@ load_dotenv()
 
 USER_AGENT = "eo-scene-agent/0.1 (take-home assignment)"
 
+# Languages in which a place name can be searched (Open-Meteo matches names in the language you ask for).
+PLACE_LANGUAGES = ("en", "it", "es", "fr", "de")
+LANGUAGE_NAMES = {"en": "English", "it": "Italian", "es": "Spanish", "fr": "French", "de": "German"}
+DEFAULT_PLACE_LANGUAGE = "en"
+
 
 def _int(name: str, default: int) -> int:
     return int(os.getenv(name, default))
@@ -20,7 +25,7 @@ class Settings:
     llm_base_url: str = os.getenv("LLM_BASE_URL", "")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     mcp_url: str = os.getenv("MCP_URL", "http://127.0.0.1:8001/mcp")
-    max_tool_chars: int = _int("MAX_TOOL_CHARS", 4000)
+    max_tool_chars: int = _int("MAX_TOOL_CHARS", 6000)
     max_window: int = _int("MAX_WINDOW", 8)
     summary_trigger: int = _int("SUMMARY_TRIGGER", 12)
     summary_max_chars: int = _int("SUMMARY_MAX_CHARS", 1200)

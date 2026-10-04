@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-SCENE_ID = re.compile(r"\bS2[A-D]_[0-9A-Z]{5}_\d{8}_\d+_L2A\b")
+from eo_agent.agent.citations import SCENE_ID  # one definition, shared with the product
 NOT_FOUND_WORDS = (r"no scenes|none|no results|did not find|didn't find|couldn't find|could not find|not find|nothing|zero|"
                    r"no match|not found|unable to find|no place|no location|no imagery")
 FAILURE_WORDS = (r"fail|error|could not|couldn't|unable|cannot|can't|not exist|does not exist|doesn't exist|not found|"
@@ -143,3 +143,4 @@ class Case:
     id: str
     turns: list[str]
     checks: list[Check]
+    language: str | list[str] = "en"  # the session setting for place names (one per turn if a list), as /language would set it

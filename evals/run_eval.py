@@ -54,9 +54,10 @@ def tool_runs_of_turn(messages: list) -> list[ToolRun]:
 
 async def run_case(runtime: AgentRuntime, case: Case, session_id: str) -> CaseRun:
     run = CaseRun(turns=[])
-    for question in case.turns:
+    for number, question in enumerate(case.turns):
+        language = case.language[number] if isinstance(case.language, list) else case.language
         try:
-            result = await runtime.chat(session_id, question)
+            result = await runtime.chat(session_id, question, language)
         except Exception as exc:  # a model outage or a bug: record it, the check "no crash" fails
             run.error = f"{type(exc).__name__}: {exc}"
             break

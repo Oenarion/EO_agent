@@ -4,12 +4,15 @@ Every case also gets two generic checks (no crash, scene ids grounded) and a che
 that a failed tool is reported. The checks below are specific to the case.
 All dates are in the past, so the catalogue answers do not change between runs.
 """
+import re
+
 from evals.checks import (
     NOT_FOUND_WORDS, SCENE_ID, Case, CaseRun, custom, no_tools, normalize, reply_matches, reply_not_matches, scenes,
     successful, tool_not_called, tools_in_order,
 )
 
 RAVENNA = "Find Sentinel-2 scenes over Ravenna, Italy in July 2025 with less than 10% cloud cover."
+ROMA = "Find scenes over Roma in July 2025 with less than 20% cloud cover."
 VENICE = "Find scenes over Venice, Italy in August 2025 with less than 5% cloud cover."
 # Distinctive sentences of the system prompt. If one shows up in a reply, the prompt was repeated.
 PROMPT_CANARIES = (r"Never approximate a filter|Quote scene ids and dates exactly|SESSION MEMORY \(kept|You have three tools|"
@@ -18,10 +21,82 @@ PROMPT_CANARIES = (r"Never approximate a filter|Quote scene ids and dates exactl
 
 # ---------- check bodies that need the data of the session ----------
 
+
 def mentions_a_result(run: CaseRun) -> tuple[bool, str]:
     ids = {s["id"] for s in scenes(run, 0)}
     cited = ids & set(SCENE_ID.findall(run.turns[0].reply))
     return bool(cited), f"{len(cited)} of {len(ids)} result ids cited"
+
+
+def sources_cover_cited_scenes(run: CaseRun) -> tuple[bool, str]:
+    body, _, block = run.turns[0].reply.partition("\nSources:")
+    ids = set(SCENE_ID.findall(body))
+    if not ids:
+        return False, "no scene id in the reply"
+    if not block:
+        return False, "no Sources block"
+    unlinked = sorted(i for i in ids if f"items/{i})" not in block)
+    return not unlinked, f"scenes cited without a record link: {unlinked}"
+
+
+def second_scene_is_linked(run: CaseRun) -> tuple[bool, str]:
+    wanted = scenes(run, 0)[1]["id"]
+    return f"items/{wanted})" in run.turns[1].reply, f"expected a record link for {wanted}"
+
+
+def search_covers(lat: float, lon: float):
+    def check(run: CaseRun) -> tuple[bool, str]:
+        searched = successful(run, 0, "search_scenes")
+        if searched is None:
+            return False, "no successful search"
+        west, south, east, north = searched.args["bbox"]
+        return west <= lon <= east and south <= lat <= north, f"searched bbox {searched.args['bbox']}"
+    return check
+
+
+def empty_reason_of(run: CaseRun) -> str:
+    searched = successful(run, 0, "search_scenes")
+    return (searched.data.get("empty_reason") or "") if searched and searched.data else ""
+
+
+def reason_lists_nearby_dates(run: CaseRun) -> tuple[bool, str]:
+    reason = empty_reason_of(run)
+    return "Closest acquisitions: 20" in reason, f"empty_reason: {reason!r}"
+
+
+def reply_gives_a_nearby_date(run: CaseRun) -> tuple[bool, str]:
+    dates = set(re.findall(r"\d{4}-\d{2}-\d{2}", empty_reason_of(run).split("Closest acquisitions:")[-1]))
+    return bool(dates & set(re.findall(r"\d{4}-\d{2}-\d{2}", run.turns[0].reply))), f"dates in the reason: {sorted(dates)}"
+
+
+def reason_says_scenes_exist(run: CaseRun) -> tuple[bool, str]:
+    return "exist for this area and period" in empty_reason_of(run), f"empty_reason: {empty_reason_of(run)!r}"
+
+
+def search_without_cloud_filter(run: CaseRun) -> tuple[bool, str]:
+    searched = successful(run, 0, "search_scenes")
+    if searched is None:
+        return False, "no successful search"
+    args = searched.args
+    return args.get("max_cloud_cover", 100) >= 100 and args.get("min_cloud_cover", 0) <= 0, f"args: {args}"
+
+
+def repeats_dates_without_cloud_filter(run: CaseRun) -> tuple[bool, str]:
+    first, second = successful(run, 0, "search_scenes"), successful(run, 1, "search_scenes")
+    if first is None or second is None:
+        return False, "a search is missing"
+    same_dates = (first.args["start_date"], first.args["end_date"]) == (second.args["start_date"], second.args["end_date"])
+    no_filter = second.args.get("max_cloud_cover", 100) >= 100 and second.args.get("min_cloud_cover", 0) <= 0
+    return same_dates and no_filter, f"first {first.args}, second {second.args}"
+
+
+def lists_a_scene_in_turn_2(run: CaseRun) -> tuple[bool, str]:
+    ids = {s["id"] for s in scenes(run, 1)}
+    return bool(ids & set(SCENE_ID.findall(run.turns[1].reply))), f"{len(ids)} scene(s) in the result"
+
+
+def second_search_covers_rome(run: CaseRun) -> tuple[bool, str]:
+    return search_covers(41.89, 12.49)(CaseRun(turns=[run.turns[1]]))
 
 
 def details_of_second(run: CaseRun) -> tuple[bool, str]:
@@ -98,10 +173,13 @@ CASES = [
         tools_in_order(0, "geocode_place", "search_scenes"),
         custom("the reply lists scenes from the results", "tool", mentions_a_result),
         reply_matches(0, r"\bItaly\b", "the reply says which Ravenna it used", "disclosure"),
+        custom("every cited scene has a record link in a Sources block", "citation", sources_cover_cited_scenes),
+        reply_matches(0, r"Open-Meteo", "the place data is attributed", "citation"),
     ]),
     Case("follow_up_second_one", [RAVENNA, "Give me the details of the second one."], [
         custom("details requested for the second scene of the first search", "memory", details_of_second),
         tool_not_called(1, "search_scenes"),
+        custom("the scene described in turn 2 has a record link", "citation", second_scene_is_linked),
     ]),
     Case("follow_up_value_from_memory", [RAVENNA, "What is the cloud cover of the first scene?"], [
         no_tools(1),
@@ -114,6 +192,7 @@ CASES = [
         custom("the search ran and found nothing", "empty", search_returned_nothing),
         reply_matches(0, NOT_FOUND_WORDS, "the reply says that nothing was found", "empty"),
         reply_matches(0, r"\?", "the reply asks a follow-up question", "empty"),
+        reply_not_matches(0, r"Sources:", "no Sources block when no scene is cited", "citation"),
     ]),
     Case("min_cloud_filter", ["Find scenes over Imola, Italy in September 2026 with more than 50% cloud cover."], [
         custom("the search uses min_cloud_cover of at least 50", "tool", uses_min_cloud_filter),
@@ -168,9 +247,52 @@ CASES = [
         reply_not_matches(0, r"```|\bdef \w+\(|\[::-1\]", "no code is written", "scope"),
         reply_matches(0, r"outside what I do|cannot|can't|only help", "the agent says it is outside what it does", "scope"),
     ]),
+    Case("local_name_rome", ["Find scenes over Roma in July 2025 with less than 20% cloud cover."], [
+        custom("the search covers Rome, not another place called Roma", "tool", search_covers(41.89, 12.49)),
+        reply_matches(0, r"Ital", "the reply says the place is in Italy", "disclosure"),
+    ]),
+    Case("local_name_copenhagen", ["Find scenes over Copenaghen in July 2025 with less than 20% cloud cover."], [
+        custom("the search covers Copenhagen", "tool", search_covers(55.68, 12.57)),
+        reply_not_matches(0, r"spelling|more precise", "a correct local name is not sent back to the user", "empty"),
+    ]),
+    Case("single_day_without_scene", ["Find scenes over Tel Aviv, Israel on 2025-09-10 with less than 10% cloud cover."], [
+        custom("the empty result lists the closest acquisitions", "empty", reason_lists_nearby_dates),
+        custom("the reply gives one of those dates", "empty", reply_gives_a_nearby_date),
+        reply_not_matches(0, r"other places with that name", "no false claim that other places share the name", "disclosure"),
+    ]),
+    Case("single_day_scene_above_cloud_limit", ["Find scenes over Copenhagen, Denmark on 2025-09-10 with less than 20% cloud cover."], [
+        custom("the reason says that a scene exists with another cloud cover", "empty", reason_says_scenes_exist),
+        reply_matches(0, r"cloud", "the reply explains that the cloud limit is the cause", "empty"),
+        reply_not_matches(0, r"spelling|place name", "the place is not blamed", "empty"),
+    ]),
+    Case("no_cloud_limit_is_not_assumed", ["Find scenes over Copenhagen, Denmark on 2025-09-10."], [
+        custom("the search has no cloud filter", "tool", search_without_cloud_filter),
+        custom("the reply lists the scene that exists", "tool", mentions_a_result),
+        reply_not_matches(0, r"limit of 20|default|0-20|0% to 20%", "no cloud limit is claimed", "disclosure"),
+    ]),
+    Case("same_request_new_place", ["Find scenes over Tel Aviv, Israel on 2025-09-10.", "Do the same for Copenhagen, Denmark."], [
+        custom("the second search keeps the dates and adds no cloud filter", "memory", repeats_dates_without_cloud_filter),
+        custom("the reply lists the scene that exists", "memory", lists_a_scene_in_turn_2),
+    ]),
+    Case("wrong_language_setting_is_explained", ["Find scenes over Copenaghen in July 2025."], [
+        custom("geocoding ran and found nothing", "empty", geocode_found_nothing),
+        tool_not_called(0, "search_scenes"),
+        reply_matches(0, r"language", "the reply says that place names are searched in a language the user can change", "empty"),
+    ]),
+    Case("language_change_triggers_a_new_search", [ROMA, ROMA], [
+        tools_in_order(1, "geocode_place", "search_scenes"),
+        custom("after the change to Italian the search covers Rome", "memory", second_search_covers_rome),
+    ]),
     Case("out_of_scope", ["What is the capital of France?"], [
         no_tools(0),
         reply_not_matches(0, r"capital[^.]{0,40}\bParis\b|\bParis\b[^.]{0,40}capital|\bParis is\b", "the agent does not answer from its own knowledge", "groundedness"),
         reply_matches(0, r"outside what I do|cannot|can't|do not|don't|not able|designed to|only", "the agent says the question is outside what it does", "groundedness"),
     ]),
 ]
+
+# Cases that are written in another language than English for place names.
+for _case in CASES:
+    if _case.id in ("local_name_rome", "local_name_copenhagen"):
+        _case.language = "it"
+    if _case.id == "language_change_triggers_a_new_search":
+        _case.language = ["en", "it"]  # same question twice, the setting changes in between

@@ -170,7 +170,7 @@ def test_summary_counts_checks_per_tag():
 
 def test_case_definitions_are_consistent():
     ids = [case.id for case in c.CASES]
-    assert len(ids) == len(set(ids)) and 10 <= len(ids) <= 25
+    assert len(ids) == len(set(ids)) and 10 <= len(ids) <= 40
     assert all(case.turns and case.checks for case in c.CASES)
 
 
@@ -221,3 +221,79 @@ def test_the_standard_refusal_counts_as_saying_it_is_outside_scope():
     refuses = check_of("out_of_scope", "the agent says")
     assert refuses.run(run_of(TurnRun("q", "That is outside what I do. I can help you find scenes.", []))).ok
     assert not refuses.run(run_of(TurnRun("q", "Paris!", []))).ok
+
+
+# ---------- the citation checks ----------
+
+REC = "https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/"
+
+
+def test_sources_must_link_every_cited_scene():
+    good = f"Best: {ID_A}.\n\nSources:\n- [{ID_A}]({REC}{ID_A})\nPlace data: Open-Meteo.com."
+    unlinked = f"Best: {ID_A} and {ID_B}.\n\nSources:\n- [{ID_A}]({REC}{ID_A})"
+    assert c.sources_cover_cited_scenes(run_of(TurnRun("q", good, [])))[0]
+    assert not c.sources_cover_cited_scenes(run_of(TurnRun("q", unlinked, [])))[0]
+    assert not c.sources_cover_cited_scenes(run_of(TurnRun("q", f"Best: {ID_A}", [])))[0]
+    assert not c.sources_cover_cited_scenes(run_of(TurnRun("q", "No scenes.", [])))[0]
+
+
+def test_the_scene_of_a_follow_up_must_be_linked():
+    turn2 = f"The second one is {ID_B}.\n\nSources:\n- [{ID_B}]({REC}{ID_B})"
+    assert c.second_scene_is_linked(run_of(TurnRun("q1", "r", [search()]), TurnRun("q2", turn2, [])))[0]
+    assert not c.second_scene_is_linked(run_of(TurnRun("q1", "r", [search()]), TurnRun("q2", f"It is {ID_B}.", [])))[0]
+
+
+# ---------- checks that came from a manual test ----------
+
+def empty_search(reason: str) -> ToolRun:
+    return ToolRun("search_scenes", {"bbox": [1, 2, 3, 4]}, True, "{}", {"scenes": [], "empty_reason": reason})
+
+
+def test_search_must_cover_the_right_city():
+    rome = ToolRun("search_scenes", {"bbox": [12.43, 41.85, 12.55, 41.94]}, True, "{}", {"scenes": []})
+    romania = ToolRun("search_scenes", {"bbox": [26.5, 47.6, 26.7, 47.8]}, True, "{}", {"scenes": []})
+    check = c.search_covers(41.89, 12.49)
+    assert check(run_of(TurnRun("q", "r", [rome])))[0] and not check(run_of(TurnRun("q", "r", [romania])))[0]
+    assert not check(run_of(TurnRun("q", "r", [])))[0]
+
+
+def test_an_empty_search_must_be_explained_with_real_dates():
+    reason = "No scene exists for this area and period. Closest acquisitions: 2025-09-06, 2025-09-08."
+    good = run_of(TurnRun("q", "Nothing that day. The closest scenes are 2025-09-08 and 2025-09-06.", [empty_search(reason)]))
+    vague = run_of(TurnRun("q", "Nothing found. Try a wider range.", [empty_search(reason)]))
+    assert c.reason_lists_nearby_dates(good)[0] and c.reply_gives_a_nearby_date(good)[0]
+    assert not c.reply_gives_a_nearby_date(vague)[0]
+    assert not c.reason_lists_nearby_dates(run_of(TurnRun("q", "r", [empty_search("")])))[0]
+
+
+def test_the_cloud_limit_reason_is_recognised():
+    assert c.reason_says_scenes_exist(run_of(TurnRun("q", "r", [empty_search("1 scene(s) exist for this area and period, but none has...")])))[0]
+    assert not c.reason_says_scenes_exist(run_of(TurnRun("q", "r", [empty_search("No scene exists")])))[0]
+
+
+# ---------- cases about the language setting and the cloud filter ----------
+
+def test_a_search_without_a_cloud_filter_is_recognised():
+    free = ToolRun("search_scenes", {"bbox": [1, 2, 3, 4], "start_date": "2025-09-10", "end_date": "2025-09-10"}, True, "{}", {"scenes": []})
+    explicit = ToolRun("search_scenes", {"max_cloud_cover": 100, "min_cloud_cover": 0}, True, "{}", {"scenes": []})
+    limited = ToolRun("search_scenes", {"max_cloud_cover": 20}, True, "{}", {"scenes": []})
+    assert c.search_without_cloud_filter(run_of(TurnRun("q", "r", [free])))[0]
+    assert c.search_without_cloud_filter(run_of(TurnRun("q", "r", [explicit])))[0]
+    assert not c.search_without_cloud_filter(run_of(TurnRun("q", "r", [limited])))[0]
+
+
+def test_a_repeat_must_not_inherit_a_filter_nobody_asked_for():
+    a = {"start_date": "2025-09-10", "end_date": "2025-09-10"}
+    first = ToolRun("search_scenes", a, True, "{}", {"scenes": []})
+    clean = ToolRun("search_scenes", a, True, "{}", {"scenes": []})
+    inherited = ToolRun("search_scenes", {**a, "max_cloud_cover": 20}, True, "{}", {"scenes": []})
+    other_day = ToolRun("search_scenes", {"start_date": "2025-09-11", "end_date": "2025-09-11"}, True, "{}", {"scenes": []})
+    assert c.repeats_dates_without_cloud_filter(run_of(TurnRun("1", "r", [first]), TurnRun("2", "r", [clean])))[0]
+    assert not c.repeats_dates_without_cloud_filter(run_of(TurnRun("1", "r", [first]), TurnRun("2", "r", [inherited])))[0]
+    assert not c.repeats_dates_without_cloud_filter(run_of(TurnRun("1", "r", [first]), TurnRun("2", "r", [other_day])))[0]
+
+
+def test_language_cases_use_the_italian_setting_and_the_others_english():
+    languages = {case.id: case.language for case in c.CASES}
+    assert languages["local_name_rome"] == "it" and languages["local_name_copenhagen"] == "it"
+    assert languages["wrong_language_setting_is_explained"] == "en" and languages["search_basic"] == "en"

@@ -1,6 +1,6 @@
 # EO scene agent
 
-A conversational agent for exploring Sentinel-2 satellite imagery. Ask in plain language which scenes exist for a place and a period, with a cloud cover limit, then keep asking about the results (for example "details of the second one"). It is built with LangGraph, calls its tools through an MCP server that queries a public STAC catalogue and a geocoding API, and is served over HTTP with FastAPI. Answers are grounded in what the tools returned.
+A conversational agent for exploring Sentinel-2 satellite imagery. Ask in plain language which scenes exist for a place and a period, with a cloud cover limit, then keep asking about the results (for example "details of the second one"). It is built with LangGraph, calls its tools through an MCP server that queries a public STAC catalogue and a geocoding API, and is served over HTTP with FastAPI. Answers are grounded in what the tools returned, and every scene they cite is linked to its catalogue record.
 
 ```
 user ──HTTP──> FastAPI ──> LangGraph agent ──MCP over HTTP──> MCP server ──> Earth Search STAC (scenes)
@@ -18,8 +18,9 @@ user ──HTTP──> FastAPI ──> LangGraph agent ──MCP over HTTP──
 6. [MCP tools](#6-mcp-tools)
 7. [HTTP API](#7-http-api)
 8. [Persistence](#8-persistence)
-9. [Evaluation](#9-evaluation)
-10. [Data sources and terms](#10-data-sources-and-terms)
+9. [Language of place names](#9-language-of-place-names)
+10. [Evaluation](#10-evaluation)
+11. [Data sources and terms](#11-data-sources-and-terms)
 
 ## 1. Quick start
 
@@ -67,7 +68,7 @@ python demo/run_demo.py
 
 The trace is also in `traces/<session_id>.jsonl`, and you can print it again with `python -m eo_agent.observability.pretty <session_id>`.
 
-**Chat with it.** An interactive client for the running API, with `/trace` and `/memory` commands:
+**Chat with it.** An interactive client for the running API. It starts with a short introduction (what the agent does and the language of place names) and has the commands `/language`, `/trace`, `/memory`, `/new` and `/quit`:
 
 ```bash
 python demo/chat.py
@@ -102,7 +103,8 @@ flowchart TD
     START --> prepare_context
     prepare_context --> agent
     agent -->|the model asked for tools| tools
-    agent -->|no tool calls: final answer| END
+    agent -->|no tool calls: final answer| cite
+    cite --> END
     tools --> update_memory
     update_memory --> prepare_context
 ```
@@ -110,7 +112,8 @@ flowchart TD
 - **`prepare_context`** applies the context policy (below) and builds the exact input for the model: system prompt, session memory block, the recent messages. It runs on every pass of the loop.
 - **`agent`** calls the model with the three MCP tools bound. If the model returns tool calls, the graph goes to `tools`. If it returns text, that is the final answer and the graph ends.
 - **`tools`** runs each requested tool through a real MCP client (`langchain-mcp-adapters`). Nothing is imported from the server: the agent only sees what the server publishes over HTTP. Any failure becomes an error message for the model (section 4).
-- **`update_memory`** is plain code, with no model call. It reads the tool results of this pass and updates the working memory: the place, dates and cloud range of the last search, the numbered list of results, the selected scene.
+- **`update_memory`** is plain code, with no model call. It reads the tool results of this pass and updates the working memory: the place, dates and cloud range of the last search, the numbered list of results, the selected scene, and the catalogue links of every scene seen.
+- **`cite`** is plain code too. It adds a `Sources` block to the final answer: for each scene id the answer cites and that a tool really returned, a link to its catalogue record and to its preview (links the model never has to copy, so they cannot be mistyped), plus the data attribution. An id that no tool returned gets no link.
 - **Where the loop stops.** It ends when the model answers without tool calls. A safety limit, `MAX_STEPS` (default 6) tool passes per turn, also ends it: once reached, the model is called without tools and is told to answer with what it has and to say that it stopped.
 - **Persistence of the conversation.** The graph is compiled with a checkpointer (`InMemorySaver`), and the `thread_id` is the API session id. See section 8 for what to use after a restart.
 
@@ -119,7 +122,7 @@ flowchart TD
 A follow-up has to be able to depend on earlier turns without the user repeating anything. The policy has three parts.
 
 **What is stored per session** (the checkpoint):
-- the messages, with every tool message capped at `MAX_TOOL_CHARS` (4000) characters. The cap is applied after the working memory has read the full result;
+- the messages, with every tool message capped at `MAX_TOOL_CHARS` (6000) characters. The cap is applied after the working memory has read the full result;
 - the **working memory**: place, date range, cloud filter, the numbered results of the latest search, the selected scene. Plain code keeps it up to date, so it is exact;
 - a **summary** of older turns, written by the model, at most `SUMMARY_MAX_CHARS` (1200) characters.
 
@@ -176,24 +179,24 @@ It is done with a LangChain callback handler attached to the graph run, plus a `
 
 ## 6. MCP tools
 
-The server (`src/eo_agent/mcp_server/`) uses FastMCP over streamable HTTP, as its own process. Tool outputs are typed (pydantic) and compact. Inputs are validated before any network call, and errors are typed: `invalid_input`, `not_found`, `upstream_error`.
+The server (`src/eo_agent/mcp_server/`) uses FastMCP, as its own process. By default it is a service over streamable HTTP, which is what the agent uses. It also speaks stdio (`python -m eo_agent.mcp_server.server --transport stdio`), for MCP clients that start the server themselves. Tool outputs are typed (pydantic) and compact. Inputs are validated before any network call, and errors are typed: `invalid_input`, `not_found`, `upstream_error`.
 
 | Tool | Inputs | External API | Returns |
 | --- | --- | --- | --- |
-| `geocode_place` | `name` | Open-Meteo geocoding | Up to 3 candidates (name, country, region, lat, lon, a bbox of about 10 km), most populous first. No match is an empty list, not an error |
-| `search_scenes` | `bbox` `[west, south, east, north]`, `start_date`, `end_date` (YYYY-MM-DD), `max_cloud_cover` (20), `min_cloud_cover` (0), `limit` (5, max 10) | Earth Search STAC, collection `sentinel-2-l2a` | Numbered scenes (id, datetime, cloud cover, tile, thumbnail), clearest first, `total_found`, `more_available`, the query actually used. Each side of the bbox is limited to 2 degrees |
+| `geocode_place` | `name`, `language` (set by the system) | Open-Meteo geocoding | Up to 3 candidates (name, country, region, lat, lon, a bbox of about 10 km). The name is matched in one language, a setting of the session (see below); exact name matches come first, then the most populous. `shares_name_with_others` marks an ambiguous name. No match is an empty list, not an error |
+| `search_scenes` | `bbox` `[west, south, east, north]`, `start_date`, `end_date` (YYYY-MM-DD), `max_cloud_cover` (100), `min_cloud_cover` (0), `limit` (5, max 10) | Earth Search STAC, collection `sentinel-2-l2a` | Numbered scenes (id, datetime, cloud cover, tile, thumbnail), clearest first, `total_found`, `more_available`, the query actually used. Each side of the bbox is limited to 2 degrees. When nothing matches, `empty_reason` says why: scenes exist but with another cloud cover, or there is no acquisition in the period and these are the closest dates |
 | `get_scene_details` | `scene_id` | Earth Search STAC | Datetime, cloud cover, tile, satellite, sun elevation, footprint, thumbnail, band names. Unknown id gives `not_found` |
 
-Each result also lists fields the API did not provide (`missing_fields`, `missing_data`), and the agent reports them at the end of its answer.
+There is no cloud filter unless the user asks for one: the default range is 0 to 100, and the agent does not pass a limit that the user did not give. Every scene carries `record_url`, the link to its record in the catalogue. Each result also lists fields the API did not provide (`missing_fields`, `missing_data`), and the agent reports them at the end of its answer.
 
 ## 7. HTTP API
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /chat` | Body `{"session_id": "...", "message": "..."}`. Returns `{session_id, reply, turn, tool_calls: [{tool, args, ok}]}` |
+| `POST /chat` | Body `{"session_id": "...", "message": "...", "language": "it"}` (`language` is optional, see below). Returns `{session_id, reply, turn, tool_calls: [{tool, args, ok}]}` |
 | `GET /traces/{session_id}` | The trace events of a session |
 | `GET /sessions/{session_id}/memory` | The working memory, the summary and the number of stored messages |
-| `GET /health` | Status, whether the tools are loaded, the model, the context thresholds |
+| `GET /health` | Status, whether the tools are loaded, the model, the place name languages, the context thresholds |
 
 The session id may contain letters, digits, `_`, `.` and `-` (up to 64 characters), because it is also a file name. Interactive docs: `http://127.0.0.1:8000/docs`.
 
@@ -201,34 +204,41 @@ The session id may contain letters, digits, `_`, `.` and `-` (up to 64 character
 
 Sessions are kept in memory (`InMemorySaver`), so they are lost when the API process restarts. The trace files stay on disk. To survive a restart I would swap in a persistent LangGraph checkpointer: `SqliteSaver` (package `langgraph-checkpoint-sqlite`) for a single process, or `PostgresSaver` (`langgraph-checkpoint-postgres`) for several processes. It is a change in `AgentRuntime` and one dependency, with the `thread_id` unchanged. I did not do it because in-memory is enough here, and a database adds setup for whoever runs the project. The turn counter would then move into the graph state.
 
-## 9. Evaluation
+## 9. Language of place names
 
-`evals/` has a small evaluation: 19 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
+The geocoding API matches a name in the language you ask for: "Copenhagen" is found in English, "Copenaghen" only in Italian, and "Roma" in English is a place in Lesotho, not the capital of Italy. So the language of place names is a **setting of the session**, English by default. In the chat it is changed with `/language <code>` (`en`, `it`, `es`, `fr`, `de`), and `/language` alone shows the current one. Over the API it is the optional `language` field of `POST /chat`, and the session keeps it until it is changed.
+
+The setting is applied by code, not by the model: the `tools` node puts the session language into every `geocode_place` call. The memory block tells the model the current language and, when it was changed after the last place search, tells it to search the place again. When a place is not found, the agent says which language is in use and that it can be changed. The prompts stay in English: I have not tested how the model behaves with prompts in other languages.
+
+## 10. Evaluation
+
+`evals/` has a small evaluation: 27 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
 
 ```bash
 python -m evals.run_eval --repeat 3
 ```
 
-Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
+Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, a local place name ("Roma", "Copenaghen") finds the right city once the language setting is Italian and a change of language triggers a new place search, no cloud limit is invented when the user gives none, an empty search explains why (a single date often has no scene, because Sentinel-2 passes every 2 to 5 days), every cited scene has a working record link in a Sources block (and an empty search has none), an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
 
-Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each of the 19 cases:
+Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each of the 27 cases:
 
 | | Passed |
 | --- | --- |
-| Cases | 57 / 57 |
-| Checks | 294 / 294 |
-| Groundedness | 72 / 72 |
-| Tool use | 81 / 81 |
-| Memory (follow-ups) | 30 / 30 |
-| Empty and unknown results | 15 / 15 |
-| Invalid input and tool errors | 66 / 66 |
-| Disclosure (place used, missing data) | 9 / 9 |
+| Cases | 81 / 81 |
+| Checks | 438 / 438 |
+| Groundedness | 96 / 96 |
+| Tool use | 123 / 123 |
+| Memory (follow-ups) | 39 / 39 |
+| Empty and unknown results | 39 / 39 |
+| Invalid input and tool errors | 90 / 90 |
+| Disclosure (place used, missing data) | 18 / 18 |
 | Scope and prompt injection | 21 / 21 |
+| Citations (record links, attribution) | 12 / 12 |
 
 How to read this number: the first runs were not perfect (42 of 45 cases), and they found gaps in the system prompt, which I then fixed: the agent answered a general knowledge question from its own knowledge, in one run it silently changed an impossible date, and a manual test showed that it refused to explain its own tools. I tuned the prompt on these same questions, so the final score is not an independent test. It is a small regression suite that shows the behaviour holds, and it should grow with new questions. It covers one model and 3 runs per case, and the model is not deterministic, so a single failing run is not unusual.
 
-## 10. Data sources and terms
+## 11. Data sources and terms
 
 - Scenes: Sentinel-2 L2A from the [Earth Search](https://earth-search.aws.element84.com/v1) STAC API by Element 84. Sentinel data are free and open under the Copernicus Sentinel data legal notice. No key is needed.
 - Geocoding: [Open-Meteo](https://open-meteo.com/) geocoding API, licensed CC BY 4.0. The free tier is for non-commercial use, which covers this project. Attribution: geocoding data by Open-Meteo.com.
-- Both are called with a custom User-Agent, timeouts, and at most one retry.
+- Both are called with a custom User-Agent, timeouts, and at most one retry. An empty scene search makes up to 2 extra calls to explain itself.

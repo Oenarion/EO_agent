@@ -29,6 +29,7 @@ class Place(BaseModel):
     latitude: float
     longitude: float
     bbox: list[float] = Field(description="[west, south, east, north], about 10 km around the point")
+    shares_name_with_others: bool = Field(False, description="True if another candidate has exactly the same name (an ambiguous place)")
     missing_fields: list[str] = Field(default_factory=list, description="Fields the API did not provide")
 
 
@@ -39,6 +40,7 @@ class SceneSummary(BaseModel):
     cloud_cover: float | None = Field(None, description="Percent, 0 to 100")
     tile: str | None = Field(None, description="Sentinel-2 MGRS tile, e.g. 32TQQ")
     thumbnail_url: str | None = None
+    record_url: str = Field(description="Link to the scene record in the catalogue: cite it as the source")
 
 
 class SceneQuery(BaseModel):
@@ -59,6 +61,7 @@ class SceneSearchResult(BaseModel):
     returned: int
     more_available: bool
     scenes: list[SceneSummary]
+    empty_reason: str | None = Field(None, description="Only when no scene matched: why, and the closest acquisitions")
     missing_data: list[str] = Field(
         default_factory=list,
         description="Fields the catalogue did not provide, per scene, e.g. 'scene 2: cloud_cover'",
@@ -74,5 +77,6 @@ class SceneDetails(BaseModel):
     sun_elevation: float | None = Field(None, description="Degrees")
     bbox: list[float] | None = None
     thumbnail_url: str | None = None
+    record_url: str = Field(description="Link to the scene record in the catalogue: cite it as the source")
     assets: list[str] = Field(description="Names of the available bands and files (names only)")
     missing_fields: list[str] = Field(default_factory=list, description="Fields the catalogue did not provide")

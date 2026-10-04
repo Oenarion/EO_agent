@@ -1,6 +1,6 @@
 """The LangGraph agent.
 
-    START -> prepare_context -> agent -+-> END               (no tool calls: final answer)
+    START -> prepare_context -> agent -+-> cite -> END       (no tool calls: final answer, then its sources)
                   ^                    |
                   |                    +-> tools -> update_memory
                   +----------------------------------------+
@@ -22,9 +22,10 @@ from langgraph.graph import END, START, StateGraph
 from eo_agent.agent.context import (
     build_model_input, cut_for_summary, message_chars, message_text, summarize, truncate_tool_content,
 )
+from eo_agent.agent.citations import add_sources, used_geocoding
 from eo_agent.agent.errors import describe, safety_net_reply, tool_error_message
 from eo_agent.agent.state import AgentState, update_working_memory
-from eo_agent.config import Settings, get_settings
+from eo_agent.config import DEFAULT_PLACE_LANGUAGE, Settings, get_settings
 
 log = logging.getLogger("eo_agent.agent")
 
@@ -69,7 +70,10 @@ def build_graph(
             update["messages"] = [RemoveMessage(id=m.id) for m in old]  # deletes them from the state
             messages = messages[cut:]
         step_count = state.get("step_count", 0)
-        model_input = build_model_input(messages, state.get("working_memory") or {}, summary, step_count, settings)
+        model_input = build_model_input(
+            messages, state.get("working_memory") or {}, summary, step_count, settings,
+            state.get("place_language", DEFAULT_PLACE_LANGUAGE),
+        )
         # "summarized" stays true for the rest of the turn, so the last call of the turn still reports it
         carried = step_count > 0 and (state.get("context_stats") or {}).get("summarized", False)
         update["model_input"] = model_input
@@ -101,6 +105,9 @@ def build_graph(
     async def tools_node(state: AgentState) -> dict:
         results: list[ToolMessage] = []
         for call in state["messages"][-1].tool_calls:
+            if call["name"] == "geocode_place":
+                # The language of place names is a setting of the session: code applies it, whatever the model passed.
+                call = {**call, "args": {**call["args"], "language": state.get("place_language", DEFAULT_PLACE_LANGUAGE)}}
             tool = tools_by_name.get(call["name"])
             if tool is None:
                 results.append(_error_message(call, "no such tool"))
@@ -130,6 +137,8 @@ def build_graph(
                     memory = update_working_memory(memory, m.name, calls[m.tool_call_id]["args"], json.loads(m.content))
                 except (KeyError, ValueError, TypeError) as exc:
                     log.warning("could not update memory from %s: %s", m.name, exc)
+        if any(isinstance(m, ToolMessage) and m.name == "geocode_place" and m.status != "error" for m in messages[ai_index + 1:]):
+            memory["place_language_used"] = state.get("place_language", DEFAULT_PLACE_LANGUAGE)
         # Truncate only now: the memory above has already read the full JSON.
         capped = [
             ToolMessage(id=m.id, content=truncate_tool_content(m.content, settings.max_tool_chars),
@@ -139,25 +148,38 @@ def build_graph(
         ]
         return {"working_memory": memory, "messages": capped}  # same id: replaces the stored message
 
+    async def cite(state: AgentState) -> dict:
+        """Add a Sources block (links to the catalogue records) to the final answer. Plain code, no model."""
+        answer = state["messages"][-1]
+        links = (state.get("working_memory") or {}).get("scene_links", {})
+        text = message_text(answer)
+        cited = add_sources(text, links, used_geocoding(state["messages"]))
+        if cited == text:
+            return {}
+        return {"messages": [AIMessage(content=cited, id=answer.id)]}  # same id: replaces the answer
+
     def route_after_agent(state: AgentState) -> str:
-        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else END
+        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "cite"
 
     graph = StateGraph(AgentState)
     graph.add_node("prepare_context", prepare_context)
     graph.add_node("agent", agent)
     graph.add_node("tools", tools_node)
     graph.add_node("update_memory", update_memory)
+    graph.add_node("cite", cite)
     graph.add_edge(START, "prepare_context")
     graph.add_edge("prepare_context", "agent")
-    graph.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
+    graph.add_conditional_edges("agent", route_after_agent, {"tools": "tools", "cite": "cite"})
+    graph.add_edge("cite", END)
     graph.add_edge("tools", "update_memory")
     graph.add_edge("update_memory", "prepare_context")
     return graph.compile(checkpointer=checkpointer or InMemorySaver())
 
 
-async def run_turn(graph, session_id: str, message: str) -> dict:
+async def run_turn(graph, session_id: str, message: str, language: str | None = None) -> dict:
     """Run one user turn. thread_id is the session id, so the checkpointer keeps the session."""
     return await graph.ainvoke(
-        {"messages": [HumanMessage(content=message)], "step_count": 0},  # step_count resets every turn
+        {"messages": [HumanMessage(content=message)], "step_count": 0,  # step_count resets every turn
+         **({"place_language": language} if language else {})},  # no language given: the session keeps its setting
         config={"configurable": {"thread_id": session_id}, "recursion_limit": RECURSION_LIMIT},
     )

@@ -74,7 +74,7 @@ async def test_search_normal(mock_http):
 async def test_search_caps_limit_at_10(mock_http):
     route = mock_http.post(f"{stac.STAC_URL}/search").respond(json=fixture("stac_search_empty.json"))
     result = await stac.search(BBOX, "2025-07-01", "2025-07-31", 10, 500)
-    assert json.loads(route.calls.last.request.content)["limit"] == 10
+    assert json.loads(route.calls[0].request.content)["limit"] == 10  # calls[0]: the search; later calls explain the empty result
     assert result.query.limit == 10
 
 
@@ -207,7 +207,7 @@ async def test_geocode_reports_missing_region(mock_http):
 async def test_search_min_cloud_cover_is_sent_and_echoed(mock_http):
     route = mock_http.post(f"{stac.STAC_URL}/search").respond(json=fixture("stac_search_empty.json"))
     result = await stac.search(BBOX, "2025-09-01", "2025-09-30", 100, 5, min_cloud_cover=50)
-    assert json.loads(route.calls.last.request.content)["query"] == {"eo:cloud_cover": {"gte": 50, "lte": 100}}
+    assert json.loads(route.calls[0].request.content)["query"] == {"eo:cloud_cover": {"gte": 50, "lte": 100}}
     assert result.query.min_cloud_cover == 50 and result.query.max_cloud_cover == 100
 
 
@@ -217,3 +217,131 @@ async def test_search_invalid_cloud_range(mock_http, min_cloud, max_cloud):
     with pytest.raises(ToolFailure) as exc:
         await stac.search(BBOX, "2025-09-01", "2025-09-30", max_cloud, 5, min_cloud_cover=min_cloud)
     assert exc.value.kind == "invalid_input" and route.call_count == 0
+
+
+# ---------- geocoding: one language per search, set by the user ----------
+
+def place(pid: int, name: str, region: str, country: str, population: int | None, lat: float = 41.9, lon: float = 12.5) -> dict:
+    p = {"id": pid, "name": name, "admin1": region, "country": country, "latitude": lat, "longitude": lon}
+    if population is not None:
+        p["population"] = population
+    return p
+
+
+def by_language(answers: dict[str, list[dict]]):
+    """A respx side effect: the geocoding API answers differently for each requested language."""
+    def side_effect(request: httpx.Request) -> httpx.Response:
+        results = answers.get(request.url.params["language"], [])
+        return httpx.Response(200, json={"results": results} if results else {"generationtime_ms": 0.1})
+    return side_effect
+
+
+ROMA_EN = [place(1, "Roma", "Botosani County", "Romania", 900, 47.7, 26.6)]
+ROMA_IT = [place(2, "Roma", "Lazio", "Italia", 2_800_000), place(1, "Roma", "distretto di Botosani", "Romania", 900, 47.7, 26.6)]
+
+
+async def test_geocode_makes_one_call_in_the_requested_language(mock_http):
+    route = mock_http.get(geocode_mod.GEOCODING_URL).mock(side_effect=by_language({"it": ROMA_IT}))
+    places = await geocode_mod.geocode("Roma", "it")
+    assert route.call_count == 1 and route.calls[0].request.url.params["language"] == "it"
+    assert (places[0].region, places[0].country) == ("Lazio", "Italia")
+
+
+async def test_the_default_language_is_english(mock_http):
+    route = mock_http.get(geocode_mod.GEOCODING_URL).respond(json=fixture("geocode_ravenna.json"))
+    await geocode_mod.geocode("Ravenna")
+    assert route.call_count == 1 and route.calls[0].request.url.params["language"] == "en"
+
+
+async def test_a_local_name_is_found_only_in_its_own_language(mock_http):
+    mock_http.get(geocode_mod.GEOCODING_URL).mock(side_effect=by_language(
+        {"it": [place(3, "Copenaghen", "Region Hovedstaden", "Danimarca", 600_000, 55.68, 12.57)]}))
+    assert await geocode_mod.geocode("Copenaghen") == []  # English: no match
+    assert [p.name for p in await geocode_mod.geocode("Copenaghen", "it")] == ["Copenaghen"]
+
+
+async def test_an_unknown_language_is_invalid_input_without_a_call(mock_http):
+    route = mock_http.get(geocode_mod.GEOCODING_URL)
+    with pytest.raises(ToolFailure) as exc:
+        await geocode_mod.geocode("Roma", "xx")
+    assert exc.value.kind == "invalid_input" and route.call_count == 0
+
+
+async def test_exact_name_first_then_the_most_populous(mock_http):
+    mock_http.get(geocode_mod.GEOCODING_URL).mock(side_effect=by_language({"en": [
+        place(10, "Ravenna Greater Area", "X", "Y", 5_000_000),
+        place(12, "Ravenna", "Ohio", "United States", 11_000),
+        place(11, "Ravenna", "Emilia-Romagna", "Italy", 80_000)]}))
+    places = await geocode_mod.geocode("ravenna")
+    assert [p.region for p in places] == ["Emilia-Romagna", "Ohio", "X"]
+
+
+async def test_places_sharing_a_name_are_flagged_and_different_names_are_not(mock_http):
+    mock_http.get(geocode_mod.GEOCODING_URL).respond(json=fixture("geocode_ravenna.json"))
+    assert all(p.shares_name_with_others for p in await geocode_mod.geocode("Ravenna"))
+    mock_http.get(geocode_mod.GEOCODING_URL).mock(side_effect=by_language({"en": [
+        place(20, "Tel Aviv", "Tel Aviv", "Israel", 460_000), place(21, "Tel Aviv Luna Park", "Tel Aviv", "Israel", None)]}))
+    assert not any(p.shares_name_with_others for p in await geocode_mod.geocode("Tel Aviv"))
+
+
+async def test_a_geocoding_failure_is_an_upstream_error(mock_http):
+    mock_http.get(geocode_mod.GEOCODING_URL).mock(side_effect=httpx.ReadTimeout("slow"))
+    with pytest.raises(ToolFailure) as exc:
+        await geocode_mod.geocode("Roma")
+    assert exc.value.kind == "upstream_error"
+
+
+async def test_search_has_no_cloud_filter_unless_the_caller_asks_for_one(mock_http):
+    route = mock_http.post(f"{stac.STAC_URL}/search").respond(json=fixture("stac_search_ravenna.json"))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as client:
+        result = await client.call_tool("search_scenes", {"bbox": BBOX, "start_date": "2025-07-01", "end_date": "2025-07-31"})
+    assert not result.isError
+    assert json.loads(route.calls[0].request.content)["query"] == {"eo:cloud_cover": {"gte": 0, "lte": 100}}
+
+
+# ---------- an empty search explains itself ----------
+
+def feature_on(day: str) -> dict:
+    return {"id": f"S2A_32TQQ_{day.replace('-', '')}_0_L2A", "properties": {"datetime": f"{day}T10:00:00Z", "eo:cloud_cover": 50.0}, "assets": {}}
+
+
+def stac_answer(matched: int, days: tuple[str, ...] = ()) -> httpx.Response:
+    return httpx.Response(200, json={"numberMatched": matched, "features": [feature_on(d) for d in days]})
+
+
+async def test_empty_search_says_when_scenes_exist_with_another_cloud_cover(mock_http):
+    route = mock_http.post(f"{stac.STAC_URL}/search")
+    route.side_effect = [stac_answer(0), stac_answer(1)]
+    result = await stac.search(BBOX, "2025-09-10", "2025-09-10", 20, 5)
+    assert result.scenes == [] and "1 scene(s) exist" in result.empty_reason and "between 0% and 20%" in result.empty_reason
+    second = json.loads(route.calls[1].request.content)
+    assert second["query"] == {"eo:cloud_cover": {"gte": 0, "lte": 100}} and second["limit"] == 1  # the same area and dates, any cloud
+
+
+async def test_empty_search_lists_the_closest_acquisitions_when_nothing_exists_that_day(mock_http):
+    route = mock_http.post(f"{stac.STAC_URL}/search")
+    route.side_effect = [stac_answer(0), stac_answer(0),
+                         stac_answer(5, ("2025-09-04", "2025-09-06", "2025-09-08", "2025-09-11", "2025-09-13", "2025-09-16"))]
+    result = await stac.search(BBOX, "2025-09-10", "2025-09-10", 10, 5)
+    assert "No scene exists for this area and period" in result.empty_reason
+    assert "2025-09-08, 2025-09-11" in result.empty_reason and "every 2 to 5 days" in result.empty_reason
+    widened = json.loads(route.calls[2].request.content)["datetime"]
+    assert widened == "2025-09-03T00:00:00Z/2025-09-17T23:59:59Z"  # 7 days on each side
+
+
+async def test_empty_search_with_nothing_nearby_says_to_check_area_and_dates(mock_http):
+    mock_http.post(f"{stac.STAC_URL}/search").respond(json={"numberMatched": 0, "features": []})
+    assert "within 7 days" in (await stac.search(BBOX, "2025-09-10", "2025-09-10", 20, 5)).empty_reason
+
+
+async def test_a_failed_explanation_does_not_break_the_search(mock_http):
+    route = mock_http.post(f"{stac.STAC_URL}/search")
+    route.side_effect = [stac_answer(0), httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow")]
+    result = await stac.search(BBOX, "2025-09-10", "2025-09-10", 20, 5)
+    assert result.scenes == [] and result.empty_reason is None
+
+
+async def test_a_search_with_results_makes_exactly_one_catalogue_call(mock_http):
+    route = mock_http.post(f"{stac.STAC_URL}/search").respond(json=fixture("stac_search_ravenna.json"))
+    result = await stac.search(BBOX, "2025-07-01", "2025-07-31", 10, 2)
+    assert route.call_count == 1 and result.empty_reason is None
