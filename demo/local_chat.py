@@ -3,6 +3,7 @@
 Start the MCP server first:   python -m eo_agent.mcp_server.server
 Then run:                     python demo/local_chat.py
 Or with your own questions:   python demo/local_chat.py "question 1" "question 2"
+Low thresholds, to see the context policy work:   MAX_WINDOW=4 SUMMARY_TRIGGER=6 python demo/local_chat.py ...
 
 All turns share one session, so follow-ups use the kept context.
 """
@@ -48,7 +49,15 @@ async def main() -> None:
         state = await run_turn(graph, session, question)
         answer = print_turn(state["messages"], before + 1)
         print(f"Agent: {answer}")
+        st = state["context_stats"]
+        print(
+            f"   context: in state={st['messages_in_state']}, sent={st['messages_sent']}, chars sent={st['chars_sent']}, "
+            f"summarized this turn={st['summarized']}"
+            + (f", input tokens={st['input_tokens']}" if st.get("input_tokens") else "")
+        )
 
+    print("\n=== Summary at the end")
+    print(state.get("summary") or "(none)")
     print("\n=== Working memory at the end")
     print(json.dumps(state["working_memory"], indent=1))
 

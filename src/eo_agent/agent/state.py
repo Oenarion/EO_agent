@@ -16,6 +16,7 @@ class AgentState(TypedDict, total=False):
     summary: str  # rolling summary of older turns (Phase 3)
     step_count: int  # tool loop iterations in the current turn
     model_input: list[AnyMessage]  # exactly what the model sees this call; overwritten each time
+    context_stats: dict[str, Any]  # size of the last model call, for the logs (overwritten each time)
 
 
 def update_working_memory(memory: dict[str, Any], tool: str, args: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:

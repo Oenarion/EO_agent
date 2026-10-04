@@ -28,3 +28,13 @@ LIMIT_NOTE = (
     "\n\nIMPORTANT: you have reached the maximum number of tool calls for this turn. "
     "Do not call any tool. Answer now with what you already have, and tell the user that you stopped early."
 )
+
+
+SUMMARY_PROMPT = (
+    "You summarize the older part of a conversation between a user and a Sentinel-2 scene finder, "
+    "so the assistant can keep working with a short memory. Write at most 120 words of plain text. "
+    "Keep only facts that appear in the messages: what the user asked, the places and dates searched, "
+    "cloud cover filters, scene ids with their date and cloud cover when they were stated, which scene the user "
+    "looked at, and what failed. Do not add anything that is not in the messages. "
+    "Fold the previous summary into the new one."
+)

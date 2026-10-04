@@ -23,6 +23,7 @@ class Settings:
     max_tool_chars: int = _int("MAX_TOOL_CHARS", 4000)
     max_window: int = _int("MAX_WINDOW", 8)
     summary_trigger: int = _int("SUMMARY_TRIGGER", 12)
+    summary_max_chars: int = _int("SUMMARY_MAX_CHARS", 1200)
     max_steps: int = _int("MAX_STEPS", 6)
 
 

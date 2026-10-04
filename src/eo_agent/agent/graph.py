@@ -14,12 +14,14 @@ import logging
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from eo_agent.agent.context import build_model_input
+from eo_agent.agent.context import (
+    build_model_input, cut_for_summary, message_chars, summarize, truncate_tool_content,
+)
 from eo_agent.agent.state import AgentState, update_working_memory
 from eo_agent.config import Settings, get_settings
 
@@ -53,13 +55,43 @@ def build_graph(
     llm_with_tools = llm.bind_tools(tools)
 
     async def prepare_context(state: AgentState) -> dict:
-        return {"model_input": build_model_input(state, settings)}
+        """Apply the context policy: summarize old turns if needed, then build the model input."""
+        update: dict[str, Any] = {}
+        messages = state["messages"]
+        summary = state.get("summary", "")
+        in_state = len(messages)
+        cut = cut_for_summary(messages, settings.max_window, settings.summary_trigger)
+        if cut:
+            old = messages[:cut]
+            summary = await summarize(llm, summary, old, settings)
+            update["summary"] = summary
+            update["messages"] = [RemoveMessage(id=m.id) for m in old]  # deletes them from the state
+            messages = messages[cut:]
+        step_count = state.get("step_count", 0)
+        model_input = build_model_input(messages, state.get("working_memory") or {}, summary, step_count, settings)
+        # "summarized" stays true for the rest of the turn, so the last call of the turn still reports it
+        carried = step_count > 0 and (state.get("context_stats") or {}).get("summarized", False)
+        update["model_input"] = model_input
+        update["context_stats"] = {
+            "messages_in_state": in_state,        # stored history, before this call's removal
+            "removed": cut,                       # messages folded into the summary on this call
+            "messages_sent": len(model_input) - 1,  # without the system message
+            "chars_sent": sum(message_chars(m) for m in model_input),
+            "summarized": bool(cut) or carried,
+            "summary_chars": len(summary),
+        }
+        return update
 
     async def agent(state: AgentState) -> dict:
         limit_reached = state.get("step_count", 0) >= settings.max_steps
         model = llm if limit_reached else llm_with_tools  # no tools bound once the limit is hit
         reply = await model.ainvoke(state["model_input"])
-        return {"messages": [reply]}
+        stats = dict(state.get("context_stats") or {})
+        usage = getattr(reply, "usage_metadata", None) or {}  # tokens, only if the provider reports them
+        if usage:
+            stats["input_tokens"], stats["output_tokens"] = usage.get("input_tokens"), usage.get("output_tokens")
+        log.info("model_call %s", json.dumps(stats))
+        return {"messages": [reply], "context_stats": stats}
 
     async def tools_node(state: AgentState) -> dict:
         results: list[ToolMessage] = []
@@ -93,7 +125,14 @@ def build_graph(
                     memory = update_working_memory(memory, m.name, calls[m.tool_call_id]["args"], json.loads(m.content))
                 except (KeyError, ValueError, TypeError) as exc:
                     log.warning("could not update memory from %s: %s", m.name, exc)
-        return {"working_memory": memory}
+        # Truncate only now: the memory above has already read the full JSON.
+        capped = [
+            ToolMessage(id=m.id, content=truncate_tool_content(m.content, settings.max_tool_chars),
+                        name=m.name, tool_call_id=m.tool_call_id, status=m.status)
+            for m in messages[ai_index + 1:]
+            if isinstance(m, ToolMessage) and len(m.content) > settings.max_tool_chars
+        ]
+        return {"working_memory": memory, "messages": capped}  # same id: replaces the stored message
 
     def route_after_agent(state: AgentState) -> str:
         return "tools" if getattr(state["messages"][-1], "tool_calls", None) else END
