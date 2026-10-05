@@ -217,3 +217,13 @@ def test_the_trace_shows_what_verification_found(tmp_path):
     assert [e["data"]["action"] for e in verify_events] == ["rewrite", "ok"]
     assert "asked to rewrite" in verify_events[0]["result_summary"] and INVENTED in verify_events[0]["data"]["problems"][0]
     assert "supported by the tool results" in verify_events[1]["result_summary"]
+
+
+def test_the_trace_says_so_when_an_answer_has_nothing_to_verify(tmp_path):
+    runtime = make_runtime(tmp_path, [AIMessage(content="That is outside what I do.")])
+    with TestClient(create_app(runtime)) as client:
+        post(client, "s", "what is the capital of France?")
+        events = client.get("/traces/s").json()["events"]
+    verify_event = next(e for e in events if e["event"] == "node" and e["node"] == "verify")
+    assert verify_event["result_summary"] == "nothing to verify in this answer (no scene ids, dates or values)"
+    assert verify_event["data"]["action"] == "ok" and verify_event["data"]["checked"] == 0

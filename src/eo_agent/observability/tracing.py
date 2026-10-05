@@ -148,6 +148,8 @@ def _summarize_node(node: str, outputs: Any) -> tuple[str | None, dict[str, Any]
         report = outputs.get("verify_report") or {}
         action = report.get("action")
         if action == "ok":
+            if report["checked"] == 0:
+                return "nothing to verify in this answer (no scene ids, dates or values)", report
             return f"all {report['checked']} claims are supported by the tool results", report
         if action == "rewrite":
             return f"{len(report['problems'])} unsupported claim(s): the model is asked to rewrite", report
