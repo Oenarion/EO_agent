@@ -106,6 +106,26 @@ def second_search_covers_rome(run: CaseRun) -> tuple[bool, str]:
     return search_covers(41.89, 12.49)(CaseRun(turns=[run.turns[1]]))
 
 
+def skill_was_loaded(run: CaseRun) -> tuple[bool, str]:
+    loads = [t.args.get("name") for t in run.turns[0].tools if t.tool == "load_skill"]
+    return "scene-selection" in loads, f"load_skill calls: {loads}"
+
+
+def candidates_have_their_sun_elevation_read(run: CaseRun) -> tuple[bool, str]:
+    calls = [t for t in run.turns[0].tools if t.tool == "get_scene_details" and t.ok]
+    return len(calls) >= 2, f"get_scene_details calls that worked: {len(calls)}"
+
+
+def a_short_list_not_a_single_winner(run: CaseRun) -> tuple[bool, str]:
+    ids = set(SCENE_ID.findall(run.turns[0].reply.split("\nSources:")[0]))
+    return 2 <= len(ids) <= 3, f"scenes in the answer: {len(ids)}"
+
+
+def states_first_cloud_cover_in_turn_2(run: CaseRun) -> tuple[bool, str]:
+    wanted = f"{scenes(run, 0)[0]['cloud_cover']:.1f}"
+    return wanted in run.turns[1].reply, f"expected {wanted} in the reply"
+
+
 def details_of_second(run: CaseRun) -> tuple[bool, str]:
     found = scenes(run, 0)
     if len(found) < 2:
@@ -181,12 +201,14 @@ CASES = [
         custom("the reply lists scenes from the results", "tool", mentions_a_result),
         reply_matches(0, r"\bItaly\b", "the reply says which Ravenna it used", "disclosure"),
         custom("every cited scene has a record link in a Sources block", "citation", sources_cover_cited_scenes),
+        tool_not_called(0, "load_skill"),
         reply_matches(0, r"Open-Meteo", "the place data is attributed", "citation"),
     ]),
     Case("follow_up_second_one", [RAVENNA, "Give me the details of the second one."], [
         custom("details requested for the second scene of the first search", "memory", details_of_second),
         tool_not_called(1, "search_scenes"),
         custom("the scene described in turn 2 has a record link", "citation", second_scene_is_linked),
+        tool_not_called(1, "load_skill"),
     ]),
     Case("follow_up_value_from_memory", [RAVENNA, "What is the cloud cover of the first scene?"], [
         no_tools(1),
@@ -292,12 +314,29 @@ CASES = [
         tools_in_order(1, "geocode_place", "search_scenes"),
         custom("after the change to Italian the search covers Rome", "memory", second_search_covers_rome),
     ]),
+    Case("skill_changes_a_choice_question", ["Which scene should I use over Ravenna, Italy in July 2025 for monitoring crops?"], [
+        custom("the scene-selection skill was loaded", "skill", skill_was_loaded),
+        custom("the sun elevation of at least two candidates was read", "skill", candidates_have_their_sun_elevation_read),
+        custom("the answer is a short list, not a single winner", "skill", a_short_list_not_a_single_winner),
+        reply_not_matches(0, r"\bbest scene\b", "no scene is called the best", "skill"),
+        reply_matches(0, r"entire scene|whole scene|entire tile|whole tile|113 km|whole image|entire image", "the answer says that the cloud figure covers the whole scene", "skill"),
+        reply_matches(0, r"preview", "the answer suggests opening the preview", "skill"),
+    ]),
+    Case("false_number_in_the_question", [RAVENNA, "I think the first scene has a cloud cover of 0.5%. Can you confirm?"], [
+        custom("the answer gives the real cloud cover of the first scene", "groundedness", states_first_cloud_cover_in_turn_2),
+        reply_not_matches(1, r"^\s*(yes|correct|that is right|confirmed)", "the agent does not confirm a number that is false", "groundedness"),
+    ]),
     Case("out_of_scope", ["What is the capital of France?"], [
         no_tools(0),
         reply_not_matches(0, r"capital[^.]{0,40}\bParis\b|\bParis\b[^.]{0,40}capital|\bParis is\b", "the agent does not answer from its own knowledge", "groundedness"),
         reply_matches(0, r"outside what I do|cannot|can't|do not|don't|not able|designed to|only", "the agent says the question is outside what it does", "groundedness"),
     ]),
 ]
+
+from evals.trajectories import TRAJECTORIES  # noqa: E402
+
+for _case in CASES:
+    _case.trajectory = TRAJECTORIES.get(_case.id, [])
 
 # Cases that are written in another language than English for place names.
 for _case in CASES:

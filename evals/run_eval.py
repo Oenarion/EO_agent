@@ -25,7 +25,10 @@ from eo_agent.agent.runtime import AgentRuntime
 from eo_agent.config import get_settings
 from eo_agent.observability.tracing import setup_logging
 from evals.cases import CASES
-from evals.checks import Case, CaseRun, CheckResult, ToolRun, TurnRun, failure_reported, grounded_ids, no_crash
+from evals import trajectory
+from evals.checks import (
+    Case, CaseRun, CheckResult, ToolRun, TurnRun, failure_reported, grounded_ids, no_crash, verification_quiet,
+)
 
 OUT = Path("evals/last_run.json")
 
@@ -63,11 +66,14 @@ async def run_case(runtime: AgentRuntime, case: Case, session_id: str) -> CaseRu
             break
         messages = await runtime.session_messages(session_id)
         run.turns.append(TurnRun(question, result.reply, tool_runs_of_turn(messages)))
+    for event in runtime.trace(session_id):  # the verification steps that asked for a rewrite or added a warning
+        if event["event"] == "node" and event["node"] == "verify" and (event.get("data") or {}).get("action") != "ok":
+            run.verify.append({"turn": event["turn"], **(event.get("data") or {})})
     return run
 
 
 def evaluate(case: Case, run: CaseRun) -> list[CheckResult]:
-    checks = [no_crash(), grounded_ids(), failure_reported(), *case.checks]
+    checks = [no_crash(), grounded_ids(), failure_reported(), verification_quiet(), *case.checks]
     if run.error:  # nothing more can be judged if a request raised
         return [no_crash().run(run)]
     return [c.run(run) for c in checks]
@@ -75,6 +81,7 @@ def evaluate(case: Case, run: CaseRun) -> list[CheckResult]:
 
 def summarize(results: list[dict]) -> dict:
     all_checks = [c for r in results for c in r["checks"]]
+    measured = [r["trajectory"] for r in results if r.get("trajectory")]
     by_tag: dict[str, list[bool]] = defaultdict(list)
     for c in all_checks:
         by_tag[c["tag"]].append(c["ok"])
@@ -84,6 +91,7 @@ def summarize(results: list[dict]) -> dict:
         "checks_run": len(all_checks),
         "checks_passed": sum(c["ok"] for c in all_checks),
         "by_tag": {t: {"passed": sum(v), "total": len(v)} for t, v in sorted(by_tag.items())},
+        "trajectory": trajectory.summarize(measured),
     }
 
 
@@ -99,6 +107,18 @@ def print_report(results: list[dict], summary: dict, model: str) -> None:
     print(f"Checks: {summary['checks_passed']}/{summary['checks_run']} passed")
     for tag, v in summary["by_tag"].items():
         print(f"  {tag:<14} {v['passed']}/{v['total']}")
+    t = summary["trajectory"]
+    if t:
+        print(f"Trajectory ({t['cases_measured']} runs with expected tool calls): tool coverage {t['tool_coverage']:.0%}, "
+              f"order {t['order_ok_rate']:.0%}, arguments {t['param_accuracy']:.0%}, "
+              f"extra calls per run {t['extra_calls_per_case']}, perfect paths {t['perfect_paths']}/{t['cases_measured']}")
+    off_path = [(r, r["trajectory"]) for r in results if r.get("trajectory") and (
+        r["trajectory"]["missing"] or r["trajectory"]["wrong_args"] or not r["trajectory"]["order_ok"] or r["trajectory"]["extra_calls"])]
+    if off_path:
+        print("\nRuns that left the expected path:")
+        for r, m in off_path:
+            print(f"  [{r['id']}] missing {m['missing']}, wrong arguments {m['wrong_args']}, extra calls {m['extra_calls']}, "
+                  f"order ok {m['order_ok']}\n      expected {m['expected']}\n      actual   {m['actual']}")
     failures = [(r, c) for r in results for c in r["checks"] if not c["ok"]]
     if failures:
         print("\nFailed checks:")
@@ -128,7 +148,9 @@ async def main() -> None:
         for case in selected:
             run = await run_case(runtime, case, f"eval-{case.id}-{repeat}-{stamp}")
             checks = evaluate(case, run)
+            measured = trajectory.measure(case.trajectory, run) if case.trajectory and not run.error else None
             results.append({
+                "trajectory": measured,
                 "id": case.id, "run": repeat, "passed": all(c.ok for c in checks),
                 "checks": [dataclasses.asdict(c) for c in checks],
                 "turns": [{"question": t.question, "reply": t.reply,

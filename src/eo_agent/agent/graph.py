@@ -1,9 +1,11 @@
 """The LangGraph agent.
 
-    START -> prepare_context -> agent -+-> cite -> END       (no tool calls: final answer, then its sources)
-                  ^                    |
-                  |                    +-> tools -> update_memory
-                  +----------------------------------------+
+    START -> prepare_context -> agent -+-> verify -+-> cite -> END   (no tool calls: final answer, checked, then its sources)
+                  ^   ^                |           |
+                  |   |                |           +-> back to prepare_context (once): the answer is written again
+                  |   |                +-> tools -> update_memory
+                  |   +----------------------------------------+
+                  +--------------------------------------------+
 
 The loop also stops when step_count reaches max_steps: the agent node then
 calls the model WITHOUT tools and with a note telling it to answer and say it
@@ -24,10 +26,13 @@ from eo_agent.agent.context import (
 )
 from eo_agent.agent.citations import add_sources, used_geocoding
 from eo_agent.agent.errors import describe, safety_net_reply, tool_error_message
+from eo_agent.agent.verify import build_facts, check, feedback_text, warning_text
 from eo_agent.agent.state import AgentState, update_working_memory
 from eo_agent.config import DEFAULT_PLACE_LANGUAGE, Settings, get_settings
 
 log = logging.getLogger("eo_agent.agent")
+
+MEMORY_TOOLS = {"geocode_place", "search_scenes", "get_scene_details"}  # the tools whose results feed the working memory
 
 # One tool iteration is 4 graph steps (prepare, agent, tools, update_memory).
 RECURSION_LIMIT = 100
@@ -51,6 +56,7 @@ def build_graph(
     tools: list[BaseTool],
     settings: Settings | None = None,
     checkpointer: Any = None,
+    skills_index: str = "",
 ):
     settings = settings or get_settings()
     tools_by_name = {t.name: t for t in tools}
@@ -72,7 +78,7 @@ def build_graph(
         step_count = state.get("step_count", 0)
         model_input = build_model_input(
             messages, state.get("working_memory") or {}, summary, step_count, settings,
-            state.get("place_language", DEFAULT_PLACE_LANGUAGE),
+            state.get("place_language", DEFAULT_PLACE_LANGUAGE), skills_index, state.get("verify_feedback", ""),
         )
         # "summarized" stays true for the rest of the turn, so the last call of the turn still reports it
         carried = step_count > 0 and (state.get("context_stats") or {}).get("summarized", False)
@@ -132,7 +138,7 @@ def build_graph(
         calls = {c["id"]: c for c in messages[ai_index].tool_calls}
         memory = dict(state.get("working_memory") or {})
         for m in messages[ai_index + 1:]:
-            if isinstance(m, ToolMessage) and m.status != "error":
+            if isinstance(m, ToolMessage) and m.status != "error" and m.name in MEMORY_TOOLS:  # a skill is plain text
                 try:
                     memory = update_working_memory(memory, m.name, calls[m.tool_call_id]["args"], json.loads(m.content))
                 except (KeyError, ValueError, TypeError) as exc:
@@ -158,18 +164,43 @@ def build_graph(
             return {}
         return {"messages": [AIMessage(content=cited, id=answer.id)]}  # same id: replaces the answer
 
+    async def verify(state: AgentState) -> dict:
+        """Check the final answer against the facts of the conversation (plain code, no model).
+
+        All good: nothing changes. Not good: the answer is removed and the model is asked, once, to write it again
+        with a correction. Still not good: the answer stays, with a visible warning."""
+        answer = state["messages"][-1]
+        text = message_text(answer)
+        facts = build_facts(state["messages"][:-1], state.get("working_memory") or {}, state.get("summary", ""))
+        verdict = check(text, facts)
+        report = {"checked": verdict.checked, "problems": verdict.problems}
+        if verdict.ok:
+            return {"verify_feedback": "", "verify_report": {**report, "action": "ok"}}
+        retries = state.get("verify_retries", 0)
+        log.warning("the answer did not pass verification (%s)", "; ".join(verdict.problems))
+        if retries < settings.max_verify_retries:
+            return {"messages": [RemoveMessage(id=answer.id)], "verify_feedback": feedback_text(verdict.problems),
+                    "verify_retries": retries + 1, "verify_report": {**report, "action": "rewrite"}}
+        return {"messages": [AIMessage(content=f"{text}\n\n{warning_text(verdict.problems)}", id=answer.id)],
+                "verify_feedback": "", "verify_report": {**report, "action": "warning"}}
+
     def route_after_agent(state: AgentState) -> str:
-        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "cite"
+        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "verify"
+
+    def route_after_verify(state: AgentState) -> str:
+        return "rewrite" if state.get("verify_feedback") else "cite"
 
     graph = StateGraph(AgentState)
     graph.add_node("prepare_context", prepare_context)
     graph.add_node("agent", agent)
     graph.add_node("tools", tools_node)
     graph.add_node("update_memory", update_memory)
+    graph.add_node("verify", verify)
     graph.add_node("cite", cite)
     graph.add_edge(START, "prepare_context")
     graph.add_edge("prepare_context", "agent")
-    graph.add_conditional_edges("agent", route_after_agent, {"tools": "tools", "cite": "cite"})
+    graph.add_conditional_edges("agent", route_after_agent, {"tools": "tools", "verify": "verify"})
+    graph.add_conditional_edges("verify", route_after_verify, {"rewrite": "prepare_context", "cite": "cite"})
     graph.add_edge("cite", END)
     graph.add_edge("tools", "update_memory")
     graph.add_edge("update_memory", "prepare_context")
@@ -179,7 +210,7 @@ def build_graph(
 async def run_turn(graph, session_id: str, message: str, language: str | None = None) -> dict:
     """Run one user turn. thread_id is the session id, so the checkpointer keeps the session."""
     return await graph.ainvoke(
-        {"messages": [HumanMessage(content=message)], "step_count": 0,  # step_count resets every turn
+        {"messages": [HumanMessage(content=message)], "step_count": 0, "verify_retries": 0,  # both reset every turn
          **({"place_language": language} if language else {})},  # no language given: the session keeps its setting
         config={"configurable": {"thread_id": session_id}, "recursion_limit": RECURSION_LIMIT},
     )

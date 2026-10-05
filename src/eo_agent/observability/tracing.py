@@ -31,7 +31,7 @@ current_session: contextvars.ContextVar[str] = contextvars.ContextVar("current_s
 current_turn: contextvars.ContextVar[int] = contextvars.ContextVar("current_turn", default=0)
 
 SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
-NODE_NAMES = {"prepare_context", "agent", "tools", "update_memory", "cite"}
+NODE_NAMES = {"prepare_context", "agent", "tools", "update_memory", "verify", "cite"}
 SUMMARY_MARK = "You summarize"  # first words of SUMMARY_PROMPT: tells a summary call from an agent call
 
 
@@ -144,6 +144,16 @@ def _summarize_node(node: str, outputs: Any) -> tuple[str | None, dict[str, Any]
             return f"final answer ({len(_text(reply.content))} chars)", None
     if node == "tools":
         return ", ".join(f"{m.name}:{m.status}" for m in outputs.get("messages", [])), None
+    if node == "verify":
+        report = outputs.get("verify_report") or {}
+        action = report.get("action")
+        if action == "ok":
+            return f"all {report['checked']} claims are supported by the tool results", report
+        if action == "rewrite":
+            return f"{len(report['problems'])} unsupported claim(s): the model is asked to rewrite", report
+        if action == "warning":
+            return f"still {len(report['problems'])} unsupported claim(s): a warning was added to the answer", report
+        return None, None
     if node == "cite":
         added = bool(outputs.get("messages"))
         return ("added a Sources block to the answer" if added else "no known scene id in the answer, nothing added"), None

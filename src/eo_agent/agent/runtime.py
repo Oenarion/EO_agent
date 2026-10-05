@@ -19,6 +19,7 @@ from eo_agent.agent.context import last_human_index, message_text
 from eo_agent.agent.errors import MCP_DOWN_REPLY, describe
 from eo_agent.agent.graph import RECURSION_LIMIT, build_graph
 from eo_agent.agent.mcp_client import load_mcp_tools
+from eo_agent.agent.skills import discover, index_text, make_load_skill_tool
 from eo_agent.config import DEFAULT_PLACE_LANGUAGE, Settings, get_settings
 from eo_agent.llm import build_llm
 from eo_agent.observability.tracing import TraceHandler, TraceWriter, current_session, current_turn, read_trace
@@ -76,7 +77,11 @@ class AgentRuntime:
                 self.mcp_error = describe(exc)
                 log.error("cannot load the tools from the MCP server at %s: %s", self.settings.mcp_url, self.mcp_error)
                 return None
-            self._graph = build_graph(self._llm or build_llm(self.settings), tools, self.settings, self._checkpointer)
+            skills = discover(self.settings.skills_dir)
+            if skills:
+                tools = [*tools, make_load_skill_tool(skills)]
+                log.info("skills available: %s", list(skills))
+            self._graph = build_graph(self._llm or build_llm(self.settings), tools, self.settings, self._checkpointer, index_text(skills))
             self.mcp_error = None
             log.info("loaded %d tools from the MCP server: %s", len(tools), [t.name for t in tools])
             return self._graph
@@ -99,7 +104,7 @@ class AgentRuntime:
                                 duration_ms=(time.perf_counter() - started) * 1000)
                     return ChatResult(session_id, MCP_DOWN_REPLY, turn)
                 state = await graph.ainvoke(
-                    {"messages": [("user", message)], "step_count": 0,  # step_count restarts every turn
+                    {"messages": [("user", message)], "step_count": 0, "verify_retries": 0,  # both restart every turn
                      **({"place_language": language} if language else {})},  # no language given: the session keeps its setting
                     config={"configurable": {"thread_id": session_id}, "recursion_limit": RECURSION_LIMIT,
                             "callbacks": [TraceHandler(writer)]},

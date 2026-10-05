@@ -1,11 +1,13 @@
 """Settings read from environment variables (and a local .env file)."""
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_SKILLS_DIR = str(Path(__file__).resolve().parents[2] / "skills")  # the skills folder of the repository
 USER_AGENT = "eo-scene-agent/0.1 (take-home assignment)"
 
 # Languages in which a place name can be searched (Open-Meteo matches names in the language you ask for).
@@ -30,7 +32,9 @@ class Settings:
     summary_trigger: int = _int("SUMMARY_TRIGGER", 12)
     summary_max_chars: int = _int("SUMMARY_MAX_CHARS", 1200)
     max_steps: int = _int("MAX_STEPS", 6)
+    max_verify_retries: int = _int("MAX_VERIFY_RETRIES", 1)  # rewrites asked of the model when its answer does not pass
     trace_dir: str = os.getenv("TRACE_DIR", "traces")
+    skills_dir: str = os.getenv("SKILLS_DIR", DEFAULT_SKILLS_DIR)  # empty string: no skills
 
 
 def get_settings() -> Settings:

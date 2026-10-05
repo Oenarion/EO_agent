@@ -34,6 +34,7 @@ class TurnRun:
 class CaseRun:
     turns: list[TurnRun]
     error: str | None = None  # set when a request raised instead of answering
+    verify: list[dict[str, Any]] = field(default_factory=list)  # the verification steps that did NOT pass at once (from the trace)
 
     def questions_text(self) -> str:
         return "\n".join(t.question for t in self.turns)
@@ -96,6 +97,17 @@ def grounded_ids() -> Check:
     return Check("scene ids come from tool results", "groundedness", fn)
 
 
+def verification_quiet() -> Check:
+    """The verify step of the agent must have had nothing to correct. If it did, the model first wrote
+    something that the tool results do not support (and the step fixed it), or the verifier raised a false alarm:
+    either way it has to be looked at."""
+    def fn(run: CaseRun) -> tuple[bool, str]:
+        if not run.verify:
+            return True, "every answer passed verification at once"
+        return False, "; ".join(f"turn {v['turn']}: {v['action']}: {v['problems']}" for v in run.verify)
+    return Check("verification had nothing to correct", "verify", fn)
+
+
 def failure_reported() -> Check:
     """If a tool failed in a turn, the reply of that turn must say that something failed."""
     def fn(run: CaseRun) -> tuple[bool, str]:
@@ -143,4 +155,5 @@ class Case:
     id: str
     turns: list[str]
     checks: list[Check]
+    trajectory: list = field(default_factory=list)  # expected tool calls, see trajectory.py
     language: str | list[str] = "en"  # the session setting for place names (one per turn if a list), as /language would set it

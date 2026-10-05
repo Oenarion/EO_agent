@@ -308,3 +308,21 @@ def test_dates_in_a_reply_must_come_from_the_tool():
     assert c.reply_dates_come_from_the_reason(ok)[0] and not c.reply_dates_come_from_the_reason(bad)[0]
     assert c.reason_lists_nearby_dates(ok)[0]
     assert not c.reason_lists_nearby_dates(run_of(TurnRun("q", "r", [empty_search("No scene exists. Closest acquisitions: 2025-09-06.")])))[0]  # no cloud cover shown
+
+
+# ---------- the verification check of the evaluation ----------
+
+def test_the_evaluation_flags_a_run_in_which_verification_had_to_step_in():
+    quiet = run_of(TurnRun("q", "r", []))
+    noisy = run_of(TurnRun("q", "r", []))
+    noisy.verify.append({"turn": 1, "action": "rewrite", "problems": ["scene id X is not in any tool result"]})
+    from evals.checks import verification_quiet
+    assert verification_quiet().run(quiet).ok
+    result = verification_quiet().run(noisy)
+    assert not result.ok and "rewrite" in result.detail and "scene id X" in result.detail
+
+
+def test_a_false_number_in_the_question_must_not_be_confirmed():
+    check = check_of("false_number_in_the_question", "the agent does not confirm")
+    assert check.run(run_of(TurnRun("a", "r", []), TurnRun("b", "No, the cloud cover is 1.40%, not 0.5%.", []))).ok
+    assert not check.run(run_of(TurnRun("a", "r", []), TurnRun("b", "Yes, it is 0.5%.", []))).ok

@@ -70,6 +70,8 @@ def stub_for(message: ToolMessage, args: dict[str, Any]) -> str:
     name = message.name or "tool"
     if message.status == "error":
         return message_text(message)[:300]
+    if name == "load_skill":  # plain text, not JSON
+        return f"load_skill({args.get('name')!r}): instructions loaded ({len(message_text(message))} chars)"
     try:
         data = json.loads(message_text(message))
         if name == "geocode_place":
@@ -156,9 +158,11 @@ def render_memory(memory: dict[str, Any], summary: str = "", place_language: str
 
 def build_model_input(
     messages: list[BaseMessage], memory: dict[str, Any], summary: str, step_count: int, settings: Settings,
-    place_language: str = DEFAULT_PLACE_LANGUAGE,
+    place_language: str = DEFAULT_PLACE_LANGUAGE, skills_index: str = "", correction: str = "",
 ) -> list[BaseMessage]:
-    system = system_prompt() + "\n\n" + render_memory(memory, summary, place_language)
+    system = system_prompt() + ("\n\n" + skills_index if skills_index else "") + "\n\n" + render_memory(memory, summary, place_language)
+    if correction:
+        system += "\n\n" + correction
     if step_count >= settings.max_steps:
         system += LIMIT_NOTE
     window = compact_old_tool_payloads(messages)[window_start(messages, settings.max_window):]

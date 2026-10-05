@@ -18,6 +18,9 @@ class AgentState(TypedDict, total=False):
     summary: str  # rolling summary of older turns (Phase 3)
     step_count: int  # tool loop iterations in the current turn
     place_language: str  # language in which place names are searched: a setting of the session
+    verify_retries: int  # rewrites already asked in the current turn
+    verify_feedback: str  # the correction given to the model for the next call (empty: none)
+    verify_report: dict[str, Any]  # what the last verification found (for the trace)
     model_input: list[AnyMessage]  # exactly what the model sees this call; overwritten each time
     context_stats: dict[str, Any]  # size of the last model call, for the logs (overwritten each time)
 

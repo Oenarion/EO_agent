@@ -29,6 +29,10 @@ What I can do:
   - give the details of a scene (time, cloud cover, satellite, sun elevation, bands)
 Every scene I mention comes from the catalogue and is listed with a link to its record.
 
+Note on cloud cover: the percentage comes from the catalogue and is computed over the whole scene (a square of about
+113 km), not over the area you ask for. It can be far from the sky over your place (in my tests, up to 30 points
+of difference), so use it as a first filter and not as a measure of your area.
+
 Place names are searched in {language}. {hint}
 Commands: /language  /trace  /memory  /new  /quit
 """
@@ -78,7 +82,8 @@ def main() -> None:
                     print(f"Unknown language '{parts[1]}'. Choose one of: {options}.\n")
             elif command == "/new":
                 session = f"chat-{int(time.time())}"
-                print(f"New session: {session} (place name language stays {language_line(language)})")
+                print(INTRO.format(language=language_line(language), hint=f"Change it with /language <code>: {options}."))
+                print(f"(new session: {session})\n")
             elif command == "/trace":
                 r = client.get(f"/traces/{session}")
                 print(render(r.json()["events"]) if r.status_code == 200 else "No trace yet.")

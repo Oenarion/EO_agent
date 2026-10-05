@@ -18,9 +18,11 @@ user ──HTTP──> FastAPI ──> LangGraph agent ──MCP over HTTP──
 6. [MCP tools](#6-mcp-tools)
 7. [HTTP API](#7-http-api)
 8. [Persistence](#8-persistence)
-9. [Language of place names](#9-language-of-place-names)
-10. [Evaluation](#10-evaluation)
-11. [Data sources and terms](#11-data-sources-and-terms)
+9. [Verification of the answers](#9-verification-of-the-answers)
+10. [Skill: choosing a scene](#10-skill-choosing-a-scene)
+11. [Language of place names](#11-language-of-place-names)
+12. [Evaluation](#12-evaluation)
+13. [Data sources and terms](#13-data-sources-and-terms)
 
 ## 1. Quick start
 
@@ -74,6 +76,18 @@ The trace is also in `traces/<session_id>.jsonl`, and you can print it again wit
 python demo/chat.py
 ```
 
+**See the skill at work.** The same question without and with the skill, in one command (the MCP server must be running):
+
+```bash
+python demo/skill_demo.py
+```
+
+**See the verification at work.** The real model, with its first answer damaged on purpose, to show that the check catches it and the model writes a good one (the MCP server must be running):
+
+```bash
+python demo/verify_demo.py
+```
+
 **Run the context demo.** A 15 turn conversation. It needs low thresholds in the API so that the policy triggers early, so restart the API like this:
 
 ```powershell
@@ -103,16 +117,19 @@ flowchart TD
     START --> prepare_context
     prepare_context --> agent
     agent -->|the model asked for tools| tools
-    agent -->|no tool calls: final answer| cite
+    agent -->|no tool calls: final answer| verify
+    verify -->|all claims supported| cite
+    verify -->|not supported, first time| prepare_context
     cite --> END
     tools --> update_memory
     update_memory --> prepare_context
 ```
 
 - **`prepare_context`** applies the context policy (below) and builds the exact input for the model: system prompt, session memory block, the recent messages. It runs on every pass of the loop.
-- **`agent`** calls the model with the three MCP tools bound. If the model returns tool calls, the graph goes to `tools`. If it returns text, that is the final answer and the graph ends.
+- **`agent`** calls the model with the three MCP tools bound (and `load_skill`, see section 10). If the model returns tool calls, the graph goes to `tools`. If it returns text, that is the final answer and the graph ends.
 - **`tools`** runs each requested tool through a real MCP client (`langchain-mcp-adapters`). Nothing is imported from the server: the agent only sees what the server publishes over HTTP. Any failure becomes an error message for the model (section 4).
 - **`update_memory`** is plain code, with no model call. It reads the tool results of this pass and updates the working memory: the place, dates and cloud range of the last search, the numbered list of results, the selected scene, and the catalogue links of every scene seen.
+- **`verify`** is plain code too: it checks the final answer against the facts of the conversation (section 9). If something is not supported, the answer is removed and the model is asked, once, to write it again.
 - **`cite`** is plain code too. It adds a `Sources` block to the final answer: for each scene id the answer cites and that a tool really returned, a link to its catalogue record and to its preview (links the model never has to copy, so they cannot be mistyped), plus the data attribution. An id that no tool returned gets no link.
 - **Where the loop stops.** It ends when the model answers without tool calls. A safety limit, `MAX_STEPS` (default 6) tool passes per turn, also ends it: once reached, the model is called without tools and is told to answer with what it has and to say that it stopped.
 - **Persistence of the conversation.** The graph is compiled with a checkpointer (`InMemorySaver`), and the `thread_id` is the API session id. See section 8 for what to use after a restart.
@@ -189,6 +206,12 @@ The server (`src/eo_agent/mcp_server/`) uses FastMCP, as its own process. By def
 
 There is no cloud filter unless the user asks for one: the default range is 0 to 100, and the agent does not pass a limit that the user did not give. Every scene carries `record_url`, the link to its record in the catalogue. Each result also lists fields the API did not provide (`missing_fields`, `missing_data`), and the agent reports them at the end of its answer.
 
+### A note on the cloud cover figure
+
+The cloud percentage that the catalogue gives (`eo:cloud_cover`, the value used for every cloud filter and for the sorting) is computed over the **whole tile**, which is about 113 by 113 km, and not over the area that was asked for. The 10 km box around a city is less than 1% of it, so the figure can be far from the sky over that city.
+
+I checked it on real data: for 40 scenes of one tile in June to August 2025, I compared the catalogue figure with the share of cloud pixels over a 10 km box near Ravenna, read from the per-pixel scene classification band (`SCL`) of each scene. The two differ by up to 30 points, in both directions: a scene at 13.5% on the tile was at 27.3% over the box, a scene at 33.3% on the tile was at 2.6% over the box, and the worst case was 37.5% against 82.6%. So a cloud filter can keep a scene that is cloudy over the area, or drop one that is clear. The agent reports the tile figure as it is. Measuring the cloud cover over the requested area is the first of the next steps (see "What I left out, and what is next").
+
 ## 7. HTTP API
 
 | Endpoint | Purpose |
@@ -204,40 +227,66 @@ The session id may contain letters, digits, `_`, `.` and `-` (up to 64 character
 
 Sessions are kept in memory (`InMemorySaver`), so they are lost when the API process restarts. The trace files stay on disk. To survive a restart I would swap in a persistent LangGraph checkpointer: `SqliteSaver` (package `langgraph-checkpoint-sqlite`) for a single process, or `PostgresSaver` (`langgraph-checkpoint-postgres`) for several processes. It is a change in `AgentRuntime` and one dependency, with the `thread_id` unchanged. I did not do it because in-memory is enough here, and a database adds setup for whoever runs the project. The turn counter would then move into the graph state.
 
-## 9. Language of place names
+## 9. Verification of the answers
+
+The prompt asks the model not to invent anything, and the evaluation measures it offline, but nothing stopped a wrong value in a real answer. The `verify` node does, on every final answer, with plain code and no second model.
+
+It looks in the answer for what can be checked: scene ids, dates (YYYY-MM-DD), percentages and degrees. Each must be supported by a fact of the conversation: a tool result, the working memory, the summary, an earlier answer, or something the user wrote. A percentage may differ from the number in the tool result only by rounding (1.402733 supports 1.40, 1.4 and 1). A percentage on a line with a single scene id must also be the cloud cover of that scene, so the number of one scene cannot be attached to another. Digits of ids and dates are not counted as numbers, so a "31%" is not supported by "2025-07-31".
+
+If everything is supported, nothing changes and there is no extra model call. If not, the wrong answer is removed from the conversation and the model is told which values are not supported and asked to write the answer again, once (`MAX_VERIFY_RETRIES`). If the second answer is still unsupported, it stays, with a visible line: "Warning: I could not verify these values against the tool results: ...". The trace has a `verify` event with the verdict and the list of problems.
+
+What it does not do: it checks that values exist and belong where they are written, not what the sentences around them mean. A number that the user writes in a question counts as a fact, so a false number repeated by the agent passes unless it is attached to a scene id. Counts such as "5 scenes" are not checked.
+
+In the 87 runs of the evaluation the step never had to correct anything: the model did not write an unsupported value, and the verifier raised no false alarm. To show it working, `python demo/verify_demo.py` wraps the real model so that its first answer is damaged on purpose (a scene id and a percentage replaced by values no tool returned): the step finds both, the model writes the answer again, and the second answer passes with all 21 claims supported.
+
+## 10. Skill: choosing a scene
+
+An Agent Skill is a folder with a `SKILL.md` file, with a `name` and a `description` in its header. This project has one, `skills/scene-selection/`. The system prompt carries only its name and its one-line description. The full instructions are loaded by a `load_skill` tool, only when the model decides that the request matches the description (a question such as "which scene should I use?"), so the skill costs nothing on the other turns, and the turn after it is loaded the context policy replaces the text with a one-line stub. Skills are discovered from the `skills/` folder (`SKILLS_DIR` changes it, an empty value turns skills off). `load_skill` is a local tool of the agent: a skill is guidance for the model, not a data source, so it does not live in the MCP server.
+
+What the skill does: the catalogue cannot say which scene is "the best", and its cloud figure is for the whole scene, so the skill tells the agent never to name a winner. It searches, reads the details of the three clearest scenes to get the sun elevation, ranks them by stated criteria (cloud cover, closeness to the wanted date, sun elevation when cloud covers are close), answers with a short list with one line of reason each, and ends with the limit of the cloud figure and a suggestion to open the preview.
+
+`python demo/skill_demo.py` asks the same question twice, without the skill and with it. Without it, the agent answers "the best scene to use is ..." and gives one scene with no caveat. With it, the agent loads the skill, reads the sun elevation of three scenes, gives three candidates with reasons and the limit. The evaluation checks both sides: the skill is loaded for a choice question, and it is not loaded for a plain search or for the details of one scene.
+
+## 11. Language of place names
 
 The geocoding API matches a name in the language you ask for: "Copenhagen" is found in English, "Copenaghen" only in Italian, and "Roma" in English is a place in Lesotho, not the capital of Italy. So the language of place names is a **setting of the session**, English by default. In the chat it is changed with `/language <code>` (`en`, `it`, `es`, `fr`, `de`), and `/language` alone shows the current one. Over the API it is the optional `language` field of `POST /chat`, and the session keeps it until it is changed.
 
 The setting is applied by code, not by the model: the `tools` node puts the session language into every `geocode_place` call. The memory block tells the model the current language and, when it was changed after the last place search, tells it to search the place again. When a place is not found, the agent says which language is in use and that it can be changed. The prompts stay in English: I have not tested how the model behaves with prompts in other languages.
 
-## 10. Evaluation
+## 12. Evaluation
 
-`evals/` has a small evaluation: 27 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
+`evals/` has a small evaluation: 29 scripted questions (one to three turns each, a fresh session per case), checked by plain code. No model judges anything. The agent runs in the same process with the real model and the real MCP tools, so the MCP server must be running.
 
 ```bash
 python -m evals.run_eval --repeat 3
 ```
 
-Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, a local place name ("Roma", "Copenaghen") finds the right city once the language setting is Italian and a change of language triggers a new place search, no cloud limit is invented when the user gives none, an empty search explains why and offers the dates to ask for instead, within the user's cloud limit (a single date often has no scene, because Sentinel-2 passes every 2 to 5 days), every cited scene has a working record link in a Sources block (and an empty search has none), an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
+Every case gets four generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), a failed tool is reported in the reply, and the verification step of the agent had nothing to correct. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, a local place name ("Roma", "Copenaghen") finds the right city once the language setting is Italian and a change of language triggers a new place search, no cloud limit is invented when the user gives none, an empty search explains why and offers the dates to ask for instead, within the user's cloud limit (a single date often has no scene, because Sentinel-2 passes every 2 to 5 days), every cited scene has a working record link in a Sources block (and an empty search has none), an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
 
-Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each of the 27 cases:
+Besides the answers, the evaluation measures the **path**: for 16 of the cases it declares which tool calls are expected, in which turn and in which order, with which arguments (the dates, the cloud range, the area, the scene id: checked on the facts, not on how the model wrote them). Four numbers come out of each run: the share of expected tools that were called, whether they came in the right order, the share called with the right arguments, and the calls beyond the expected ones. It is the idea of the step-by-step metrics of the Earth-Bench benchmark: a right answer reached by a wrong path is a warning sign.
+
+Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each of the 29 cases:
 
 | | Passed |
 | --- | --- |
-| Cases | 81 / 81 |
-| Checks | 444 / 444 |
-| Groundedness | 99 / 99 |
-| Tool use | 123 / 123 |
+| Cases | 87 / 87 |
+| Checks | 579 / 579 |
+| Groundedness | 111 / 111 |
+| Tool use | 135 / 135 |
 | Memory (follow-ups) | 39 / 39 |
 | Empty and unknown results | 42 / 42 |
-| Invalid input and tool errors | 90 / 90 |
+| Invalid input and tool errors | 96 / 96 |
 | Disclosure (place used, missing data) | 18 / 18 |
 | Scope and prompt injection | 21 / 21 |
 | Citations (record links, attribution) | 12 / 12 |
+| Skill (loaded when needed, not otherwise) | 18 / 18 |
+| Verification had nothing to correct | 87 / 87 |
+
+Trajectory over the same runs (48 runs with expected calls): tool coverage 100%, right order 100%, right arguments 100%, no extra calls, 48 of 48 perfect paths.
 
 How to read this number: the first runs were not perfect (42 of 45 cases), and they found gaps in the system prompt, which I then fixed: the agent answered a general knowledge question from its own knowledge, in one run it silently changed an impossible date, and a manual test showed that it refused to explain its own tools. I tuned the prompt on these same questions, so the final score is not an independent test. It is a small regression suite that shows the behaviour holds, and it should grow with new questions. It covers one model and 3 runs per case, and the model is not deterministic, so a single failing run is not unusual.
 
-## 11. Data sources and terms
+## 13. Data sources and terms
 
 - Scenes: Sentinel-2 L2A from the [Earth Search](https://earth-search.aws.element84.com/v1) STAC API by Element 84. Sentinel data are free and open under the Copernicus Sentinel data legal notice. No key is needed.
 - Geocoding: [Open-Meteo](https://open-meteo.com/) geocoding API, licensed CC BY 4.0. The free tier is for non-commercial use, which covers this project. Attribution: geocoding data by Open-Meteo.com.
