@@ -301,12 +301,13 @@ async def test_search_has_no_cloud_filter_unless_the_caller_asks_for_one(mock_ht
 
 # ---------- an empty search explains itself ----------
 
-def feature_on(day: str) -> dict:
-    return {"id": f"S2A_32TQQ_{day.replace('-', '')}_0_L2A", "properties": {"datetime": f"{day}T10:00:00Z", "eo:cloud_cover": 50.0}, "assets": {}}
+def feature_on(day: str, cloud: float = 50.0) -> dict:
+    return {"id": f"S2A_32TQQ_{day.replace('-', '')}_0_L2A", "properties": {"datetime": f"{day}T10:00:00Z", "eo:cloud_cover": cloud}, "assets": {}}
 
 
-def stac_answer(matched: int, days: tuple[str, ...] = ()) -> httpx.Response:
-    return httpx.Response(200, json={"numberMatched": matched, "features": [feature_on(d) for d in days]})
+def stac_answer(matched: int, days: tuple[str, ...] = (), clouds: dict[str, float] | None = None) -> httpx.Response:
+    clouds = clouds or {}
+    return httpx.Response(200, json={"numberMatched": matched, "features": [feature_on(d, clouds.get(d, 50.0)) for d in days]})
 
 
 async def test_empty_search_says_when_scenes_exist_with_another_cloud_cover(mock_http):
@@ -322,9 +323,9 @@ async def test_empty_search_lists_the_closest_acquisitions_when_nothing_exists_t
     route = mock_http.post(f"{stac.STAC_URL}/search")
     route.side_effect = [stac_answer(0), stac_answer(0),
                          stac_answer(5, ("2025-09-04", "2025-09-06", "2025-09-08", "2025-09-11", "2025-09-13", "2025-09-16"))]
-    result = await stac.search(BBOX, "2025-09-10", "2025-09-10", 10, 5)
-    assert "No scene exists for this area and period" in result.empty_reason
-    assert "2025-09-08, 2025-09-11" in result.empty_reason and "every 2 to 5 days" in result.empty_reason
+    result = await stac.search(BBOX, "2025-09-10", "2025-09-10", 100, 5)  # no cloud limit
+    assert "No scene exists for this area and period" in result.empty_reason and "every 2 to 5 days" in result.empty_reason
+    assert "2025-09-08 (cloud 50.0%), 2025-09-11 (cloud 50.0%)" in result.empty_reason
     widened = json.loads(route.calls[2].request.content)["datetime"]
     assert widened == "2025-09-03T00:00:00Z/2025-09-17T23:59:59Z"  # 7 days on each side
 
@@ -345,3 +346,26 @@ async def test_a_search_with_results_makes_exactly_one_catalogue_call(mock_http)
     route = mock_http.post(f"{stac.STAC_URL}/search").respond(json=fixture("stac_search_ravenna.json"))
     result = await stac.search(BBOX, "2025-07-01", "2025-07-31", 10, 2)
     assert route.call_count == 1 and result.empty_reason is None
+
+
+async def test_nearby_dates_offered_respect_the_cloud_limit_the_user_gave(mock_http):
+    """The real Tel Aviv case: with a 10% limit, the 21% date must not be offered as a date to ask for."""
+    days = ("2025-09-06", "2025-09-08", "2025-09-11", "2025-09-16")
+    clouds = {"2025-09-06": 2.4, "2025-09-08": 21.0, "2025-09-11": 4.9, "2025-09-16": 7.6}
+    mock_http.post(f"{stac.STAC_URL}/search").side_effect = [stac_answer(0), stac_answer(0), stac_answer(4, days, clouds)]
+    reason = (await stac.search(BBOX, "2025-09-10", "2025-09-10", 10, 5)).empty_reason
+    assert "between 0% and 10%: 2025-09-06 (cloud 2.4%), 2025-09-11 (cloud 4.9%), 2025-09-16 (cloud 7.6%)" in reason
+    assert "2025-09-08" not in reason
+
+
+async def test_when_no_nearby_date_fits_the_limit_the_reason_says_so_and_shows_the_cloud_cover(mock_http):
+    mock_http.post(f"{stac.STAC_URL}/search").side_effect = [
+        stac_answer(0), stac_answer(0), stac_answer(2, ("2025-09-08", "2025-09-11"), {"2025-09-08": 21.0, "2025-09-11": 40.0})]
+    reason = (await stac.search(BBOX, "2025-09-10", "2025-09-10", 10, 5)).empty_reason
+    assert "none has a cloud cover between 0% and 10%" in reason and "2025-09-08 (cloud 21.0%)" in reason and "2025-09-11 (cloud 40.0%)" in reason
+
+
+async def test_one_date_with_two_tiles_shows_the_clearest_scene_of_that_day(mock_http):
+    wider = httpx.Response(200, json={"numberMatched": 2, "features": [feature_on("2025-09-11", 30.0), feature_on("2025-09-11", 3.0)]})
+    mock_http.post(f"{stac.STAC_URL}/search").side_effect = [stac_answer(0), stac_answer(0), wider]
+    assert "2025-09-11 (cloud 3.0%)" in (await stac.search(BBOX, "2025-09-10", "2025-09-10", 10, 5)).empty_reason

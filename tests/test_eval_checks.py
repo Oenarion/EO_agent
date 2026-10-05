@@ -258,7 +258,7 @@ def test_search_must_cover_the_right_city():
 
 
 def test_an_empty_search_must_be_explained_with_real_dates():
-    reason = "No scene exists for this area and period. Closest acquisitions: 2025-09-06, 2025-09-08."
+    reason = "No scene exists for this area and period. Closest acquisitions: 2025-09-06 (cloud 2.4%), 2025-09-08 (cloud 9.0%)."
     good = run_of(TurnRun("q", "Nothing that day. The closest scenes are 2025-09-08 and 2025-09-06.", [empty_search(reason)]))
     vague = run_of(TurnRun("q", "Nothing found. Try a wider range.", [empty_search(reason)]))
     assert c.reason_lists_nearby_dates(good)[0] and c.reply_gives_a_nearby_date(good)[0]
@@ -297,3 +297,14 @@ def test_language_cases_use_the_italian_setting_and_the_others_english():
     languages = {case.id: case.language for case in c.CASES}
     assert languages["local_name_rome"] == "it" and languages["local_name_copenhagen"] == "it"
     assert languages["wrong_language_setting_is_explained"] == "en" and languages["search_basic"] == "en"
+
+
+# ---------- the dates an empty search offers ----------
+
+def test_dates_in_a_reply_must_come_from_the_tool():
+    reason = "No scene exists. Closest acquisitions with a cloud cover between 0% and 10%: 2025-09-06 (cloud 2.4%), 2025-09-11 (cloud 4.9%)."
+    ok = run_of(TurnRun("Tel Aviv on 2025-09-10?", "Nothing on 2025-09-10. Try 2025-09-06 or 2025-09-11.", [empty_search(reason)]))
+    bad = run_of(TurnRun("Tel Aviv on 2025-09-10?", "Nothing. Try 2025-09-07.", [empty_search(reason)]))
+    assert c.reply_dates_come_from_the_reason(ok)[0] and not c.reply_dates_come_from_the_reason(bad)[0]
+    assert c.reason_lists_nearby_dates(ok)[0]
+    assert not c.reason_lists_nearby_dates(run_of(TurnRun("q", "r", [empty_search("No scene exists. Closest acquisitions: 2025-09-06.")])))[0]  # no cloud cover shown

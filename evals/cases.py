@@ -61,12 +61,19 @@ def empty_reason_of(run: CaseRun) -> str:
 
 def reason_lists_nearby_dates(run: CaseRun) -> tuple[bool, str]:
     reason = empty_reason_of(run)
-    return "Closest acquisitions: 20" in reason, f"empty_reason: {reason!r}"
+    return "Closest acquisitions" in reason and bool(re.search(r"\d{4}-\d{2}-\d{2} \(cloud", reason)), f"empty_reason: {reason!r}"
 
 
 def reply_gives_a_nearby_date(run: CaseRun) -> tuple[bool, str]:
-    dates = set(re.findall(r"\d{4}-\d{2}-\d{2}", empty_reason_of(run).split("Closest acquisitions:")[-1]))
+    dates = set(re.findall(r"\d{4}-\d{2}-\d{2}", empty_reason_of(run)))
     return bool(dates & set(re.findall(r"\d{4}-\d{2}-\d{2}", run.turns[0].reply))), f"dates in the reason: {sorted(dates)}"
+
+
+def reply_dates_come_from_the_reason(run: CaseRun) -> tuple[bool, str]:
+    """Every date the reply offers must come from the tool (or be the date the user asked about)."""
+    known = set(re.findall(r"\d{4}-\d{2}-\d{2}", empty_reason_of(run) + run.questions_text()))
+    invented = sorted(set(re.findall(r"\d{4}-\d{2}-\d{2}", run.turns[0].reply)) - known)
+    return not invented, f"dates not found in the tool result: {invented}"
 
 
 def reason_says_scenes_exist(run: CaseRun) -> tuple[bool, str]:
@@ -258,6 +265,8 @@ CASES = [
     Case("single_day_without_scene", ["Find scenes over Tel Aviv, Israel on 2025-09-10 with less than 10% cloud cover."], [
         custom("the empty result lists the closest acquisitions", "empty", reason_lists_nearby_dates),
         custom("the reply gives one of those dates", "empty", reply_gives_a_nearby_date),
+        custom("every date in the reply comes from the tool", "groundedness", reply_dates_come_from_the_reason),
+        reply_not_matches(0, r"2025-09-08", "the date above the user's cloud limit is not offered", "empty"),
         reply_not_matches(0, r"other places with that name", "no false claim that other places share the name", "disclosure"),
     ]),
     Case("single_day_scene_above_cloud_limit", ["Find scenes over Copenhagen, Denmark on 2025-09-10 with less than 20% cloud cover."], [

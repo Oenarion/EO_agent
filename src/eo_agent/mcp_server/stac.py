@@ -105,13 +105,34 @@ async def _explain_empty(bbox: list[float], start_date: str, end_date: str, min_
     except ToolFailure as exc:  # the explanation is a bonus: its failure must not break the search
         log.warning("could not explain the empty search: %s", exc)
         return None
-    start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
-    days = {date.fromisoformat(f["properties"]["datetime"][:10]) for f in wider.get("features", [])}
-    nearest = sorted(sorted(days, key=lambda d: (start - d).days if d < start else (d - end).days)[:4])
-    if not nearest:
+    return _describe_nearby(wider.get("features", []), date.fromisoformat(start_date), date.fromisoformat(end_date), min_cloud, max_cloud)
+
+
+def _describe_nearby(features: list[dict], start: date, end: date, min_cloud: float, max_cloud: float) -> str:
+    """The reason of an empty search, with the dates the user can ask for instead.
+
+    Each date shows its cloud cover. If the user gave a cloud range, only the dates that fit it are offered."""
+    best: dict[date, float] = {}  # one entry per day: the clearest scene of that day
+    for f in features:
+        day, cloud = date.fromisoformat(f["properties"]["datetime"][:10]), f["properties"].get("eo:cloud_cover")
+        if cloud is not None and cloud < best.get(day, 101):
+            best[day] = cloud
+
+    def nearest(items: dict[date, float]) -> str:
+        pairs = sorted(sorted(items.items(), key=lambda kv: (start - kv[0]).days if kv[0] < start else (kv[0] - end).days)[:4])
+        return ", ".join(f"{d.isoformat()} (cloud {c:.1f}%)" for d, c in pairs)
+
+    base = ("No scene exists for this area and period. Sentinel-2 images a location every 2 to 5 days, "
+            "so a short period can have none.")
+    if not best:
         return f"No scene exists for this area within {NEARBY_DAYS} days of this period either. Check the area and the dates."
-    return ("No scene exists for this area and period. Sentinel-2 images a location every 2 to 5 days, "
-            "so a short period can have none. Closest acquisitions: " + ", ".join(d.isoformat() for d in nearest) + ".")
+    if (min_cloud, max_cloud) == (0, 100):
+        return f"{base} Closest acquisitions: {nearest(best)}."
+    fitting = {d: c for d, c in best.items() if min_cloud <= c <= max_cloud}
+    if fitting:
+        return f"{base} Closest acquisitions with a cloud cover between {min_cloud:g}% and {max_cloud:g}%: {nearest(fitting)}."
+    return (f"{base} Scenes exist within {NEARBY_DAYS} days, but none has a cloud cover between {min_cloud:g}% and {max_cloud:g}%: "
+            f"{nearest(best)}.")
 
 
 async def search(

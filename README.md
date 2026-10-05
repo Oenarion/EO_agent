@@ -184,7 +184,7 @@ The server (`src/eo_agent/mcp_server/`) uses FastMCP, as its own process. By def
 | Tool | Inputs | External API | Returns |
 | --- | --- | --- | --- |
 | `geocode_place` | `name`, `language` (set by the system) | Open-Meteo geocoding | Up to 3 candidates (name, country, region, lat, lon, a bbox of about 10 km). The name is matched in one language, a setting of the session (see below); exact name matches come first, then the most populous. `shares_name_with_others` marks an ambiguous name. No match is an empty list, not an error |
-| `search_scenes` | `bbox` `[west, south, east, north]`, `start_date`, `end_date` (YYYY-MM-DD), `max_cloud_cover` (100), `min_cloud_cover` (0), `limit` (5, max 10) | Earth Search STAC, collection `sentinel-2-l2a` | Numbered scenes (id, datetime, cloud cover, tile, thumbnail), clearest first, `total_found`, `more_available`, the query actually used. Each side of the bbox is limited to 2 degrees. When nothing matches, `empty_reason` says why: scenes exist but with another cloud cover, or there is no acquisition in the period and these are the closest dates |
+| `search_scenes` | `bbox` `[west, south, east, north]`, `start_date`, `end_date` (YYYY-MM-DD), `max_cloud_cover` (100), `min_cloud_cover` (0), `limit` (5, max 10) | Earth Search STAC, collection `sentinel-2-l2a` | Numbered scenes (id, datetime, cloud cover, tile, thumbnail), clearest first, `total_found`, `more_available`, the query actually used. Each side of the bbox is limited to 2 degrees. When nothing matches, `empty_reason` says why: scenes exist but with another cloud cover, or there is no acquisition in the period and these are the closest dates, each with its cloud cover and, if a cloud limit was given, only the dates that fit it |
 | `get_scene_details` | `scene_id` | Earth Search STAC | Datetime, cloud cover, tile, satellite, sun elevation, footprint, thumbnail, band names. Unknown id gives `not_found` |
 
 There is no cloud filter unless the user asks for one: the default range is 0 to 100, and the agent does not pass a limit that the user did not give. Every scene carries `record_url`, the link to its record in the catalogue. Each result also lists fields the API did not provide (`missing_fields`, `missing_data`), and the agent reports them at the end of its answer.
@@ -218,18 +218,18 @@ The setting is applied by code, not by the model: the `tools` node puts the sess
 python -m evals.run_eval --repeat 3
 ```
 
-Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, a local place name ("Roma", "Copenaghen") finds the right city once the language setting is Italian and a change of language triggers a new place search, no cloud limit is invented when the user gives none, an empty search explains why (a single date often has no scene, because Sentinel-2 passes every 2 to 5 days), every cited scene has a working record link in a Sources block (and an empty search has none), an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
+Every case gets three generic checks: the session does not crash, every scene id in a reply appears in a tool result of that session (nothing invented), and a failed tool is reported in the reply. Each case adds its own: the right tool was called with the right arguments (for example, details requested for the second scene of the previous search), a value is taken from memory without calling a tool, an empty search is reported as empty, a place that does not exist is not searched, an ambiguous place is named, a local place name ("Roma", "Copenaghen") finds the right city once the language setting is Italian and a change of language triggers a new place search, no cloud limit is invented when the user gives none, an empty search explains why and offers the dates to ask for instead, within the user's cloud limit (a single date often has no scene, because Sentinel-2 passes every 2 to 5 days), every cited scene has a working record link in a Sources block (and an empty search has none), an unknown scene id produces a failure that the reply explains, a missing field is declared, a question outside the scope is not answered from the model's own knowledge, a question about the agent's own tools is answered, and prompt injection attempts (a request for code, an order hidden inside a real request, a request to repeat the instructions) do not change what the agent does or reveal the system prompt. The checks are themselves tested offline in `tests/test_eval_checks.py`.
 
 Result of the last run (`evals/last_run.json`), model `gemma4:31b-cloud`, 3 runs of each of the 27 cases:
 
 | | Passed |
 | --- | --- |
 | Cases | 81 / 81 |
-| Checks | 438 / 438 |
-| Groundedness | 96 / 96 |
+| Checks | 444 / 444 |
+| Groundedness | 99 / 99 |
 | Tool use | 123 / 123 |
 | Memory (follow-ups) | 39 / 39 |
-| Empty and unknown results | 39 / 39 |
+| Empty and unknown results | 42 / 42 |
 | Invalid input and tool errors | 90 / 90 |
 | Disclosure (place used, missing data) | 18 / 18 |
 | Scope and prompt injection | 21 / 21 |
