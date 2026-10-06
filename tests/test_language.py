@@ -115,7 +115,7 @@ async def test_the_memory_warns_the_model_when_the_language_changed_after_a_plac
     assert "changed from English after the last place search" in first_call_of_turn_2
     # once the place is searched again, in the new language, the warning is gone
     third = ScriptedLLM([AIMessage(content="ok")])
-    state = await run_turn(build_graph(third, [geocode_tool(seen)], Settings()), "t", "hi", language="it")
+    await run_turn(build_graph(third, [geocode_tool(seen)], Settings()), "t", "hi", language="it")
     assert "changed from" not in third.calls[0]["messages"][0].content
 
 

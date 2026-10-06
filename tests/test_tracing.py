@@ -14,7 +14,6 @@ SEARCH_ARGS = {"bbox": BBOX, "start_date": "2025-07-01", "end_date": "2025-07-31
 
 def three_turn_session(tmp_path):
     """The demo shape: a search, a follow-up, a forced error. Returns the events and the replies."""
-    scene_args = {"scene_id": "SCENE_B"}
     tools = [
         fake_tool("search_scenes", lambda **kw: SEARCH_DATA),
         failing_tool("get_scene_details", ConnectionError("not found upstream")),

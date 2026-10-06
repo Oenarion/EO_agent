@@ -64,10 +64,10 @@ def create_app(runtime: AgentRuntime | None = None) -> FastAPI:
             result = await app.state.runtime.chat(request.session_id, request.message, request.language)
         except openai.OpenAIError as exc:  # the language model could not be reached or refused
             log.error("language model call failed: %s: %s", type(exc).__name__, exc)
-            raise HTTPException(503, "The language model is not available right now. Try again in a moment.")
+            raise HTTPException(503, "The language model is not available right now. Try again in a moment.") from None
         except Exception:
             log.exception("unexpected failure while handling the chat request")
-            raise HTTPException(500, "Internal error. The details are in the server log and in the session trace.")
+            raise HTTPException(500, "Internal error. The details are in the server log and in the session trace.") from None
         return ChatResponse(**result.__dict__)
 
     @app.get("/traces/{session_id}")

@@ -11,7 +11,7 @@ import asyncio
 import json
 import sys
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from eo_agent.agent.graph import build_graph, run_turn
 from eo_agent.agent.mcp_client import load_mcp_tools

@@ -45,7 +45,7 @@ def measure(expected: list[ExpectedCall], run: CaseRun) -> dict[str, Any]:
 
     # order: walk through the actual calls once, matching the expected calls that happened
     position, ordered = -1, True
-    for e, did in zip(expected, happened):
+    for e, did in zip(expected, happened, strict=True):
         if not did or e.unordered:
             continue
         later = [k for k, _ in in_turn(e) if k > position]
@@ -62,8 +62,8 @@ def measure(expected: list[ExpectedCall], run: CaseRun) -> dict[str, Any]:
         "order_ok": bool(any(happened)) and ordered,
         "param_accuracy": sum(right_args) / n,
         "extra_calls": max(len(actual) - n, 0),
-        "missing": [e.tool for e, did in zip(expected, happened) if not did],
-        "wrong_args": [e.tool for e, did, ok in zip(expected, happened, right_args) if did and not ok],
+        "missing": [e.tool for e, did in zip(expected, happened, strict=True) if not did],
+        "wrong_args": [e.tool for e, did, ok in zip(expected, happened, right_args, strict=True) if did and not ok],
     }
 
 

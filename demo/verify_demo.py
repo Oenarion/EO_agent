@@ -11,7 +11,6 @@ The MCP server must be running (see the README).
 """
 import asyncio
 import dataclasses
-import re
 import sys
 
 from langchain_core.messages import AIMessage

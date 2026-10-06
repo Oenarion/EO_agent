@@ -4,7 +4,6 @@ Only what the question really requires is expected. A place has to be found befo
 a follow-up that the memory can answer needs no call, and so on. Arguments are checked on the facts
 (the dates, the cloud range, the area, the scene id), not on how the model wrote them.
 """
-from typing import Callable
 
 from evals.checks import CaseRun, scenes, successful
 from evals.trajectory import ArgsCheck, ExpectedCall

@@ -181,6 +181,19 @@ def names_the_chosen_place(run: CaseRun) -> tuple[bool, str]:
     return bool(hit), f"candidates: {names}, mentioned: {hit}"
 
 
+def names_the_place_used(run: CaseRun) -> tuple[bool, str]:
+    """The place that was searched is the candidate whose bbox went to search_scenes."""
+    search = successful(run, 0, "search_scenes")
+    candidates = successful(run, 0, "geocode_place").data["result"]
+    used = next((c for c in candidates if search and c["bbox"] == search.args.get("bbox")), None)
+    if used is None:
+        return False, "the searched bbox matches no geocoding candidate"
+    reply = normalize(run.turns[0].reply)
+    where = [used.get(k) for k in ("region", "country") if used.get(k)]
+    ok = normalize(used["name"]) in reply and any(normalize(w) in reply for w in where)
+    return ok, f"searched {used['name']}, {where}"
+
+
 def failed_get_scene_details(run: CaseRun) -> tuple[bool, str]:
     calls = [t for t in run.turns[0].tools if t.tool == "get_scene_details"]
     return bool(calls) and not calls[-1].ok, f"calls: {[(t.args, t.ok) for t in calls]}"
@@ -325,6 +338,15 @@ CASES = [
     Case("false_number_in_the_question", [RAVENNA, "I think the first scene has a cloud cover of 0.5%. Can you confirm?"], [
         custom("the answer gives the real cloud cover of the first scene", "groundedness", states_first_cloud_cover_in_turn_2),
         reply_not_matches(1, r"^\s*(yes|correct|that is right|confirmed)", "the agent does not confirm a number that is false", "groundedness"),
+    ]),
+    Case("country_name_discloses_the_place_used", ["Find scenes of Italy in August 2024."], [
+        tools_in_order(0, "geocode_place", "search_scenes"),
+        custom("the reply names the place that was really searched", "disclosure", names_the_place_used),
+    ]),
+    Case("region_question_is_answered_honestly", ["Does it work with regions like Emilia-Romagna, or do I have to give a city?"], [
+        no_tools(0),
+        reply_not_matches(0, r"^\s*yes\b", "the agent does not say that regions work", "groundedness"),
+        reply_matches(0, r"\b(town|city|cities|village|small place)\b", "the reply says what the tool finds", "empty"),
     ]),
     Case("out_of_scope", ["What is the capital of France?"], [
         no_tools(0),

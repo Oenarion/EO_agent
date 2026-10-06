@@ -1,7 +1,6 @@
 """Verification of final answers: the claims, the matching, the pairing, and the graph around them. Offline."""
 import json
 
-import pytest
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -10,7 +9,7 @@ from eo_agent.agent.verify import build_facts, check, feedback_text, matches, wa
 from eo_agent.api.main import create_app
 from eo_agent.config import Settings
 from test_citations import ID_A, ID_B, SEARCH_RESULT, tool as data_tool
-from test_error_path import ScriptedChatModel, make_runtime, post
+from test_error_path import make_runtime, post
 from test_graph import BBOX, ScriptedLLM, call
 
 INVENTED = "S2A_32TQQ_20250101_0_L2A"

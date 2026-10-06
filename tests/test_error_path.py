@@ -1,5 +1,4 @@
 """Error path, API and trace tests. No network, no real model."""
-import json
 import logging
 from typing import Any
 
@@ -16,7 +15,7 @@ from eo_agent.agent.errors import EMPTY_REPLY, MCP_DOWN_REPLY
 from eo_agent.agent.runtime import AgentRuntime
 from eo_agent.api.main import create_app
 from eo_agent.config import Settings
-from test_graph import BBOX, Anything, call, failing_tool, tools_ok
+from test_graph import Anything, call, failing_tool, tools_ok
 
 SECRET = "sk-secret-1234567890"
 

@@ -16,3 +16,5 @@ BUGS.md
 *.pdf
 evals/traces/
 MANUAL_TESTS.md
+.coverage
+CODE_TOUR.md

@@ -59,7 +59,8 @@ def main() -> None:
         except httpx.HTTPError as exc:
             sys.exit(f"Cannot reach the API at {args.api} ({type(exc).__name__}). Start it first, see the README.")
         print(INTRO.format(language=language_line(language), hint=f"Change it with /language <code>: {options}."))
-        print(f"(model: {health['model']}, MCP tools loaded: {health['mcp_connected']}, session: {session})\n")
+        tools = "connected" if health["mcp_connected"] else "not connected yet, tried again at the first message"
+        print(f"(model: {health['model']}, MCP tools: {tools}, session: {session})\n")
 
         while True:
             try:
@@ -69,6 +70,9 @@ def main() -> None:
             if not message:
                 continue
             command = message.split()[0]
+            if command.startswith("\\"):
+                print(f"Commands start with / (a forward slash), for example /{command[1:]}. Type /language, /trace, /memory, /new or /quit.\n")
+                continue
             if command == "/quit":
                 break
             if command == "/language":

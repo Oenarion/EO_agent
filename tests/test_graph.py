@@ -1,7 +1,6 @@
 """Graph tests with a scripted model and fake tools. No network, no real LLM."""
 import json
 
-import pytest
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
